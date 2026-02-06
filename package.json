@@ -1,0 +1,33 @@
+{
+  "name": "cifad",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "build:wasm": "cd src-wasm && cargo build --target wasm32-unknown-unknown --release --target-dir target_build -j 1 && wasm-bindgen target_build/wasm32-unknown-unknown/release/cifad_wasm.wasm --out-dir pkg --target web",
+    "dev": "npm run build:wasm && vite",
+    "tauri": "npm run build:wasm && tauri dev",
+    "build": "npm run build:wasm && tsc && vite build",
+    "preview": "vite preview"
+  },
+  "dependencies": {
+    "@deck.gl/core": "^9.0.0",
+    "@deck.gl/layers": "^9.0.0",
+    "@deck.gl/react": "^9.0.0",
+    "@tauri-apps/api": "^1.5.0",
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0",
+    "react-window": "^1.8.10"
+  },
+  "devDependencies": {
+    "@tauri-apps/cli": "^1.5.0",
+    "@types/react": "^18.2.0",
+    "@types/react-dom": "^18.2.0",
+    "@vitejs/plugin-react": "^4.2.0",
+    "typescript": "^5.2.0",
+    "vite": "^5.0.0",
+    "vite-plugin-top-level-await": "^1.6.0",
+    "vite-plugin-wasm": "^3.5.0",
+    "wasm-pack": "^0.12.1"
+  }
+}
