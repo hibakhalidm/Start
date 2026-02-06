@@ -134,6 +134,16 @@ function App() {
         return null; // Bytes not in memory
     }, [viewWindow, selectionRange]);
 
+    // Calculate Graph Data dynamically
+    const liveGraphData = React.useMemo(() => {
+        // If selection exists, show LOCAL analysis
+        if (selectedBytes && selectedBytes.length > 0) {
+            return calculateLocalAutocorrelation(selectedBytes);
+        }
+        // Fallback to GLOBAL analysis from WASM
+        return result?.autocorrelation_graph || [];
+    }, [selectedBytes, result]);
+
     // 2. UNIFIED SELECTION HANDLER
     const handleRangeSelect = (start: number, end: number) => {
         setSelectionRange({ start, end });
