@@ -81,22 +81,57 @@ function App() {
     };
 
     const handleRadarJump = (offset: number) => {
-        setHoveredOffset(offset);
-        hexViewRef.current?.scrollToOffset(offset);
-        setSelectionRange({ start: offset, end: offset + 16 });
-
-        // Force load chunk at this jump location
-        if (fileObj) {
-            const newStart = Math.max(0, offset - (CHUNK_SIZE / 2));
-            const alignedStart = Math.floor(newStart / 16) * 16;
-            loadChunk(alignedStart, fileObj);
-        }
+        handleRangeSelect(offset, offset + 16);
     };
 
     const handleHexSelection = (start: number, end: number) => {
         setSelectionRange({ start, end });
         // Optional: Also highlight on Radar immediately
         // setHoveredOffset(start); 
+    };
+
+    // 1. CALCULATE SELECTED BYTES (Adapted for Zero-Copy)
+    const selectedBytes = React.useMemo(() => {
+        if (!viewWindow || !selectionRange) return null;
+
+        // We can only preview bytes if they are currently loaded in the viewWindow
+        const valStart = selectionRange.start;
+        const valEnd = selectionRange.end;
+
+        // Check intersection with loaded window
+        const winStart = viewWindow.start;
+        const winEnd = winStart + viewWindow.data.length;
+
+        if (valStart >= winStart && valStart < winEnd) {
+            const relStart = valStart - winStart;
+            // Limit preview to ~1KB for performance
+            const length = Math.min(valEnd - valStart, 1024);
+            const relEnd = Math.min(relStart + length, viewWindow.data.length);
+
+            return viewWindow.data.subarray(relStart, relEnd);
+        }
+
+        return null; // Bytes not in memory
+    }, [viewWindow, selectionRange]);
+
+    // 2. UNIFIED SELECTION HANDLER
+    const handleRangeSelect = (start: number, end: number) => {
+        setSelectionRange({ start, end });
+        setHoveredOffset(start);
+
+        // Jump the Hex View to this location
+        hexViewRef.current?.scrollToOffset(start);
+
+        // Ensure we load the data for this location so the pipeline can see it
+        if (fileObj) {
+            // Check if we need to load a new chunk
+            if (!viewWindow || start < viewWindow.start || start > (viewWindow.start + viewWindow.data.length)) {
+                // Determine new window start (center around target)
+                const newStart = Math.max(0, start - (CHUNK_SIZE / 2));
+                const alignedStart = Math.floor(newStart / 16) * 16;
+                loadChunk(alignedStart, fileObj);
+            }
+        }
     };
 
     return (
@@ -131,8 +166,9 @@ function App() {
                             <div style={{ flex: 1, overflow: 'auto' }}>
                                 <FileTree
                                     file={fileObj}
+                                    fileSize={fileObj?.size || 0}
                                     signatures={result?.signatures || []}
-                                    onNodeSelect={handleRadarJump}
+                                    onSelectRange={handleRangeSelect}
                                 />
                             </div>
                         </div>
@@ -191,7 +227,7 @@ function App() {
                                 {result?.autocorrelation_graph && <AutocorrelationGraph data={result.autocorrelation_graph} />}
                             </div>
                             <div style={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
-                                <TransformationPipeline />
+                                <TransformationPipeline selectedBytes={selectedBytes} />
                             </div>
                         </div>
                     </Panel>
