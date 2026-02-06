@@ -1,8 +1,9 @@
-import React, { forwardRef, useImperativeHandle, useRef } from 'react';
-import { FixedSizeList as List } from 'react-window';
+import React, { forwardRef, useImperativeHandle, useRef, useEffect } from 'react';
+import { FixedSizeList as List, ListOnItemsRenderedProps } from 'react-window';
 
 interface HexViewProps {
-    data: Uint8Array;
+    window: { start: number; data: Uint8Array } | null;
+    totalFileSize: number;
     onScroll: (offset: number) => void;
 }
 
@@ -10,23 +11,45 @@ export interface HexViewRef {
     scrollToOffset: (offset: number) => void;
 }
 
-const Row = ({ index, style, data }: any) => {
+const Row = ({ index, style, data }: { index: number; style: React.CSSProperties; data: HexViewProps }) => {
+    const { window } = data;
     const bytesPerRow = 16;
-    const offset = index * bytesPerRow;
-    // Safety check for end of file
-    if (offset >= data.length) return null;
+    const fileOffset = index * bytesPerRow;
 
-    const slice = data.subarray(offset, Math.min(offset + bytesPerRow, data.length));
-    const hex = Array.from(slice).map((b: number) => b.toString(16).padStart(2, '0')).join(' ');
+    // Check if this row is within our loaded window
+    let rowData: Uint8Array | null = null;
 
-    // Simple ASCII Preview (replace non-printables with '.')
-    const ascii = Array.from(slice).map((b: number) => (b > 31 && b < 127) ? String.fromCharCode(b) : '.').join('');
+    if (window) {
+        const relativeOffset = fileOffset - window.start;
+        if (relativeOffset >= 0 && relativeOffset < window.data.length) {
+            // We have data for this row
+            const end = Math.min(relativeOffset + bytesPerRow, window.data.length);
+            rowData = window.data.subarray(relativeOffset, end);
+        }
+    }
+
+    // Render Logic
+    if (!rowData) {
+        // Placeholder for unloaded chunks
+        return (
+            <div style={{ ...style, fontFamily: 'var(--font-mono)', fontSize: '13px', display: 'flex', alignItems: 'center', opacity: 0.3 }}>
+                <span style={{ color: '#555', marginRight: '16px', minWidth: '80px' }}>
+                    {fileOffset.toString(16).padStart(8, '0').toUpperCase()}
+                </span>
+                <span>................................................</span>
+            </div>
+        );
+    }
+
+    const hex = Array.from(rowData).map((b: number) => b.toString(16).padStart(2, '0')).join(' ');
+    // Simple ASCII Preview
+    const ascii = Array.from(rowData).map((b: number) => (b > 31 && b < 127) ? String.fromCharCode(b) : '.').join('');
 
     return (
         <div style={{ ...style, fontFamily: 'var(--font-mono)', fontSize: '13px', display: 'flex', alignItems: 'center' }}>
             {/* Offset */}
             <span style={{ color: '#555', marginRight: '16px', minWidth: '80px', userSelect: 'none' }}>
-                {offset.toString(16).padStart(8, '0').toUpperCase()}
+                {fileOffset.toString(16).padStart(8, '0').toUpperCase()}
             </span>
             {/* Hex */}
             <span style={{ color: '#a5b3ce', marginRight: '16px', minWidth: '350px' }}>
@@ -40,12 +63,12 @@ const Row = ({ index, style, data }: any) => {
     );
 };
 
-const HexView = forwardRef<HexViewRef, HexViewProps>(({ data, onScroll }, ref) => {
+const HexView = forwardRef<HexViewRef, HexViewProps>((props, ref) => {
     const listRef = useRef<List>(null);
     const bytesPerRow = 16;
-    const rowCount = Math.ceil(data.length / bytesPerRow);
+    const rowCount = Math.ceil(props.totalFileSize / bytesPerRow);
 
-    // Allow parent (App.tsx) to control scrolling
+    // Allow parent to control scrolling
     useImperativeHandle(ref, () => ({
         scrollToOffset: (offset: number) => {
             const rowIndex = Math.floor(offset / bytesPerRow);
@@ -53,18 +76,22 @@ const HexView = forwardRef<HexViewRef, HexViewProps>(({ data, onScroll }, ref) =
         }
     }));
 
+    // Debounce scroll notifications to parent to avoid spamming file slices
+    const handleItemsRendered = ({ visibleStartIndex }: ListOnItemsRenderedProps) => {
+        const visibleOffset = visibleStartIndex * bytesPerRow;
+        props.onScroll(visibleOffset);
+    };
+
     return (
         <List
             ref={listRef}
-            height={400} // Controlled by parent flex container
+            height={400} // Parent should control sizing via flex, but fixed for now
             itemCount={rowCount}
-            itemSize={24} // Dense row height
+            itemSize={24}
             width="100%"
-            itemData={data}
+            itemData={props} // Pass props (including window) to Row
             className="hex-view-list"
-            onItemsRendered={({ visibleStartIndex }) => {
-                onScroll(visibleStartIndex * bytesPerRow);
-            }}
+            onItemsRendered={handleItemsRendered}
             style={{ overflowX: 'hidden' }}
         >
             {Row}

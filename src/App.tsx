@@ -9,23 +9,85 @@ import AutocorrelationGraph from './components/AutocorrelationGraph';
 import FileTree from './components/FileTree';
 import './App.css';
 
+import React, { useState, useRef, useCallback } from 'react';
+import { Panel, PanelGroup, PanelResizeHandle } from 'react-resizable-panels';
+import { useAnalysisEngine } from './hooks/useAnalysisEngine';
+import { HilbertCurve } from './utils/hilbert';
+import Radar from './components/Radar';
+import HexView, { HexViewRef } from './components/HexView';
+import SemanticScrollbar from './components/SemanticScrollbar';
+import AutocorrelationGraph from './components/AutocorrelationGraph';
+import FileTree from './components/FileTree';
+import TransformationPipeline from './components/TransformationPipeline';
+import './App.css';
+
+// 64KB Chunk Size for "Zero-Copy" feel
+const CHUNK_SIZE = 64 * 1024;
+
 function App() {
     const { isReady, analyzeFile, result, isAnalyzing } = useAnalysisEngine();
-    const [fileData, setFileData] = useState<Uint8Array | null>(null);
+
+    // Zero-Copy State
     const [fileObj, setFileObj] = useState<File | null>(null);
+    const [viewWindow, setViewWindow] = useState<{ start: number; data: Uint8Array } | null>(null);
+
+    // UI State
     const [hoveredOffset, setHoveredOffset] = useState<number | null>(null);
     const [selectionRange, setSelectionRange] = useState<{ start: number, end: number } | null>(null);
 
     const [hilbert] = useState(() => new HilbertCurve(9));
     const hexViewRef = useRef<HexViewRef>(null);
 
+    // Load a specific chunk from the file without reading the whole thing
+    const loadChunk = useCallback(async (startOffset: number, file: File) => {
+        // Clamp offset
+        if (startOffset < 0) startOffset = 0;
+        if (startOffset >= file.size) return;
+
+        const endOffset = Math.min(startOffset + CHUNK_SIZE, file.size);
+        const blob = file.slice(startOffset, endOffset);
+        const buffer = await blob.arrayBuffer();
+        const data = new Uint8Array(buffer);
+
+        setViewWindow({
+            start: startOffset,
+            data
+        });
+    }, []);
+
     const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
         if (e.target.files && e.target.files[0]) {
             const file = e.target.files[0];
             setFileObj(file);
+
+            // 1. Trigger Async Analysis (WASM)
             analyzeFile(file);
-            const buffer = await file.arrayBuffer();
-            setFileData(new Uint8Array(buffer));
+
+            // 2. Load Initial Chunk for UI (Header)
+            await loadChunk(0, file);
+        }
+    };
+
+    // Scroll Handler from HexView
+    const handleHexScroll = (offset: number) => {
+        setHoveredOffset(offset);
+
+        // If the user scrolls outside our current window, load a new chunk
+        if (fileObj && viewWindow) {
+            const relative = offset - viewWindow.start;
+            const bufferZone = 4096; // 4KB buffer before triggering new load
+
+            if (relative < 0 || relative > (viewWindow.data.length - bufferZone)) {
+                // Determine new window start (center around current offset)
+                // Align to 16 bytes for cleanliness
+                const newStart = Math.max(0, offset - (CHUNK_SIZE / 2));
+                const alignedStart = Math.floor(newStart / 16) * 16;
+
+                // Avoid redundant loads (simple check)
+                if (Math.abs(alignedStart - viewWindow.start) > 4096) {
+                    loadChunk(alignedStart, fileObj).catch(console.error);
+                }
+            }
         }
     };
 
@@ -33,6 +95,13 @@ function App() {
         setHoveredOffset(offset);
         hexViewRef.current?.scrollToOffset(offset);
         setSelectionRange({ start: offset, end: offset + 16 });
+
+        // Force load chunk at this jump location
+        if (fileObj) {
+            const newStart = Math.max(0, offset - (CHUNK_SIZE / 2));
+            const alignedStart = Math.floor(newStart / 16) * 16;
+            loadChunk(alignedStart, fileObj);
+        }
     };
 
     return (
@@ -65,7 +134,11 @@ function App() {
                         <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
                             <div className="panel-header">EXPLORER</div>
                             <div style={{ flex: 1, overflow: 'auto' }}>
-                                <FileTree file={fileObj} onNodeSelect={handleRadarJump} />
+                                <FileTree
+                                    file={fileObj}
+                                    signatures={result?.signatures || []}
+                                    onNodeSelect={handleRadarJump}
+                                />
                             </div>
                         </div>
                     </Panel>
@@ -85,7 +158,9 @@ function App() {
                                             hilbert={hilbert}
                                             onJump={handleRadarJump}
                                         />
-                                    ) : <div style={{ height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#555' }}>NO SIGNAL</div>}
+                                    ) : <div style={{ height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#555' }}>
+                                        {isAnalyzing ? "ANALYZING..." : "NO SIGNAL"}
+                                    </div>}
                                 </div>
                             </Panel>
                             <PanelResizeHandle className="resize-handle-horizontal" />
@@ -94,11 +169,16 @@ function App() {
                                     <div style={{ flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
                                         <div className="panel-header">MATRIX</div>
                                         <div style={{ flex: 1 }}>
-                                            {fileData && <HexView ref={hexViewRef} data={fileData} onScroll={(off) => setHoveredOffset(off)} />}
+                                            <HexView
+                                                ref={hexViewRef}
+                                                window={viewWindow}
+                                                totalFileSize={fileObj?.size || 0}
+                                                onScroll={handleHexScroll}
+                                            />
                                         </div>
                                     </div>
                                     <div style={{ width: '24px', borderLeft: '1px solid #333' }}>
-                                        {result && <SemanticScrollbar entropyMap={result.entropy_map} onScroll={(p) => handleRadarJump(Math.floor(fileData!.length * p))} currentPercent={0} />}
+                                        {result && <SemanticScrollbar entropyMap={result.entropy_map} onScroll={(p) => handleRadarJump(Math.floor((fileObj?.size || 0) * p))} currentPercent={0} />}
                                     </div>
                                 </div>
                             </Panel>
@@ -108,9 +188,14 @@ function App() {
 
                     {/* RIGHT */}
                     <Panel defaultSize={25} minSize={15} collapsible={true} className="bg-panel cyber-border-left">
-                        <div className="panel-header">INSPECTOR</div>
-                        <div style={{ padding: '20px' }}>
-                            {result?.autocorrelation_graph && <AutocorrelationGraph data={result.autocorrelation_graph} />}
+                        <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
+                            <div className="panel-header">INSPECTOR</div>
+                            <div style={{ padding: '20px', borderBottom: '1px solid #333' }}>
+                                {result?.autocorrelation_graph && <AutocorrelationGraph data={result.autocorrelation_graph} />}
+                            </div>
+                            <div style={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
+                                <TransformationPipeline />
+                            </div>
                         </div>
                     </Panel>
                 </PanelGroup>
