@@ -13,6 +13,26 @@ import './App.css';
 // 64KB Chunk Size for "Zero-Copy" feel
 const CHUNK_SIZE = 64 * 1024;
 
+// Simple JS Autocorrelation for "Live" preview (run on small chunks)
+const calculateLocalAutocorrelation = (data: Uint8Array): number[] => {
+    if (!data || data.length < 16) return [];
+    const maxLag = Math.min(64, Math.floor(data.length / 2));
+    const results = [];
+
+    for (let lag = 1; lag < maxLag; lag++) {
+        let sum = 0;
+        let count = 0;
+        for (let i = 0; i < data.length - lag; i++) {
+            // Normalized diff
+            const diff = Math.abs(data[i] - data[i + lag]);
+            sum += (255 - diff); // Higher = more similar
+            count++;
+        }
+        results.push(sum / count / 255); // 0.0 to 1.0
+    }
+    return results;
+};
+
 function App() {
     const { isReady, analyzeFile, result, isAnalyzing } = useAnalysisEngine();
 
@@ -224,7 +244,14 @@ function App() {
                         <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
                             <div className="panel-header">INSPECTOR</div>
                             <div style={{ padding: '20px', borderBottom: '1px solid #333' }}>
-                                {result?.autocorrelation_graph && <AutocorrelationGraph data={result.autocorrelation_graph} />}
+                                <div style={{
+                                    fontSize: '0.7rem',
+                                    color: selectedBytes ? 'var(--accent-cyan)' : '#888',
+                                    marginBottom: '5px'
+                                }}>
+                                    {selectedBytes ? 'LOCAL PERIODICITY (SELECTION)' : 'GLOBAL PERIODICITY (FILE)'}
+                                </div>
+                                <AutocorrelationGraph data={liveGraphData} />
                             </div>
                             <div style={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
                                 <TransformationPipeline selectedBytes={selectedBytes} />

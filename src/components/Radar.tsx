@@ -5,8 +5,8 @@ import { HilbertCurve } from '../utils/hilbert';
 
 interface RadarProps {
     matrix: Uint8Array;
-    highlightOffset: number | null; // Hover (Reticle)
-    selectionRange: { start: number, end: number } | null; // Selection (Highlight)
+    highlightOffset: number | null;
+    selectionRange: { start: number, end: number } | null;
     hilbert: HilbertCurve;
     onJump: (offset: number) => void;
 }
@@ -15,8 +15,14 @@ const Radar: React.FC<RadarProps> = ({ matrix, highlightOffset, selectionRange, 
     const width = 512;
     const height = 512;
 
+    // Helper to get XY
+    const getXY = (offset: number) => {
+        const [x, y] = hilbert.offsetToXY(offset);
+        return [x + 0.5, y + 0.5]; // Center in pixel
+    };
+
     const layers: any[] = [
-        // 1. The Heatmap
+        // 1. Base Heatmap
         new BitmapLayer({
             id: 'hilbert-bitmap',
             image: { width, height, data: matrix },
@@ -31,59 +37,60 @@ const Radar: React.FC<RadarProps> = ({ matrix, highlightOffset, selectionRange, 
         })
     ];
 
-    // 2. Selection Highlight (Improved)
+    // 2. Selection Range (Start/End Markers)
     if (selectionRange) {
-        // Calculate points for Start and End to draw a line or region
-        const startXY = hilbert.offsetToXY(selectionRange.start);
-        const endXY = hilbert.offsetToXY(selectionRange.end);
-
         layers.push(
             new ScatterplotLayer({
-                id: 'selection-start',
-                data: [{ position: [startXY[0] + 0.5, startXY[1] + 0.5] }],
-                getPosition: (d: any) => d.position,
-                getFillColor: [0, 240, 255, 255], // Solid Cyan
-                getRadius: 4
-            }),
-            new ScatterplotLayer({
-                id: 'selection-end',
-                data: [{ position: [endXY[0] + 0.5, endXY[1] + 0.5] }],
-                getPosition: (d: any) => d.position,
-                getFillColor: [255, 40, 40, 255], // Red for End
-                getRadius: 4
+                id: 'selection-markers',
+                data: [
+                    { pos: getXY(selectionRange.start), color: [0, 240, 255, 255] }, // Cyan Start
+                    { pos: getXY(selectionRange.end), color: [255, 40, 40, 255] }    // Red End
+                ],
+                getPosition: (d: any) => d.pos,
+                getFillColor: (d: any) => d.color,
+                getRadius: 5,
+                radiusMinPixels: 3,
+                updateTriggers: {
+                    data: selectionRange // FORCE UPDATE
+                }
             })
-            // Ideally, we would draw a PathLayer between these points, 
-            // but Hilbert curves are discontinuous in 2D space, 
-            // so just showing start/end is a good step 1.
         );
     }
 
-    // 3. Hover Reticle (Existing)
+    // 3. The "Cyan Box" (Current Viewport Reticle)
     if (highlightOffset !== null) {
-        const [x, y] = hilbert.offsetToXY(highlightOffset);
         layers.push(
             new ScatterplotLayer({
                 id: 'reticle',
-                data: [{ position: [x + 0.5, y + 0.5] }],
-                getPosition: (d: any) => d.position,
+                data: [{ pos: getXY(highlightOffset) }],
+                getPosition: (d: any) => d.pos,
                 getFillColor: [0, 0, 0, 0],
-                getLineColor: [255, 255, 255, 200], // White crosshair
+                getLineColor: [0, 240, 255, 255],
+                getLineWidth: 2,
                 stroked: true,
-                radiusMinPixels: 2,
-                getRadius: 5
+                radiusScale: 1,
+                radiusMinPixels: 10, // Make it VISIBLE
+                radiusMaxPixels: 50,
+                getRadius: 20,
+                // Animation loop to create "Pulse" effect
+                parameters: {
+                    depthTest: false
+                },
+                updateTriggers: {
+                    getPosition: highlightOffset // FORCE UPDATE
+                }
             })
         );
     }
 
     return (
-        <div style={{ width: '100%', height: '100%', background: '#000' }}>
-            <DeckGL
-                initialViewState={{ target: [width / 2, height / 2, 0], zoom: 0, minZoom: -2, maxZoom: 10 }}
-                controller={true}
-                layers={layers}
-                getCursor={() => 'crosshair'}
-            />
-        </div>
+        <DeckGL
+            initialViewState={{ target: [width / 2, height / 2, 0], zoom: 0, minZoom: -2, maxZoom: 10 }}
+            controller={true}
+            layers={layers}
+            getCursor={() => 'crosshair'}
+            style={{ background: '#000' }}
+        />
     );
 };
 
