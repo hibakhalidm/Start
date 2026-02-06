@@ -1,39 +1,49 @@
 # UI/UX Design Guidelines
+**Theme:** "Cyber-Forensic" (Tactical, Dark, High-Contrast)
 
-## 1. Aesthetic Direction: "Cyber-Forensic"
-* **Theme:** Dark Mode Only. High contrast for data visibility.
-* **Inspiration:** The provided screenshots (`image_40797e.png`, `image_407693.png`).
-* [cite_start]**Core Philosophy:** "The Searchlight" – illuminate data amidst the dark noise[cite: 18].
+## 1. Aesthetic Direction
+* **Philosophy:** "Data is Light." The interface is deep void black; data is neon.
+* **Constraint:** NO EMOJIS. Use SVG technical icons.
+* **Inspiration:** The provided screenshots (`image_40797e.png`, `image_407693.png`)
 
-## 2. Layout Structure
-The app utilizes a **3-Column** or **Dashboard** layout.
 
-### A. The Skeleton (Left Sidebar) [Image 1]
-* **Purpose:** Hierarchical navigation.
-* **Components:** Tree view showing `Root > Payload > Data_Block_1`.
-* **Behavior:** Clicking a node selects the corresponding byte range in the Matrix.
+## 2. Color Palette (Strict Adherence)
+| Scope | Color Name | Hex Code | Usage |
+| :--- | :--- | :--- | :--- |
+| **Background** | **Deep Void** | `#050505` | App Background |
+| | **Panel Black** | `#0a0a0f` | Components |
+| **Accents** | **Neon Cyan** | `#00f0ff` | Selection, Active State, Scrollbar Reticle |
+| | **Alert Red** | `#ff2a2a` | High Entropy / Encryption |
+| | **Data Blue** | `#3b82f6` | Text / Structured Data |
+| **Text** | **Mono** | `#e0e0e0` | Hex Data, Offsets |
 
-### B. The Matrix / Radar (Center Stage)
-* **View 1: Hilbert Map (Global):**
-    * [cite_start]Square visualization using Deck.gl[cite: 81].
-    * Pixel-dense representation of the entire file.
-* **View 2: Hex Editor (Micro):**
-    * Fixed-width font (Monospace).
-    * [cite_start]Grid system: Offset (Left), Hex Bytes (Center), ASCII (Right)[cite: 89].
-    * Highlighting: Active selection is outlined in Cyan/Neon Blue [Image 1].
+## 3. Layout Structure: "The Vertical Stack"
 
-### C. The Inspector / Pipeline (Right/Bottom Panel)
-* **Inspector:** Shows value interpretations (As Integer, As Float, As Timestamp) [Image 1].
-* **Pipeline (The Unmasker):** Node-based or Stack-based UI for applying operations (XOR -> Rotate -> Inflate) [Image 2].
+**Grid Configuration:** `280px` (Left) | `1fr` (Center) | `320px` (Right)
 
-## 3. Color Palette (Strict Adherence)
-* **Background:** `#0d1117` (Deep almost-black).
-* [cite_start]**Text/H1:** `#3b82f6` (Neon Blue) – Used for TIP data[cite: 85].
-* [cite_start]**Metadata/H2:** `#ef4444` (Red)[cite: 86].
-* [cite_start]**Encrypted/H3:** `#000000` (Black/Dark Grey)[cite: 84].
-* [cite_start]**Vendor Pattern:** `#a855f7` (Purple)[cite: 87].
-* **UI Accents:** Cyan (`#06b6d4`) for borders and active selections [Image 1].
+### Pane A: The Skeleton (Left - 280px)
+* **Component:** `FileTree`.
+* **Visual:** Minimalist tree nodes. Connected by faint guide lines (`#333`).
+* **Behavior:** Auto-expands to match the current Hex View offset.
 
-## 4. Typography
-* **Data/Code:** `JetBrains Mono`, `Fira Code`, or `Roboto Mono`.
-* **UI Labels:** `Inter` or `Segoe UI`.
+### Pane B: The Twin-View Core (Center - 1fr)
+* **Container:** Flex Column.
+* **Top (60%): The Global Radar**
+    * **Component:** `HilbertMap` (Square).
+    * **Visual:** 2D Heatmap.
+    * **Overlay:** A "Cyan Box" Reticle showing the current Hex View viewport.
+* **Bottom (40%): The Matrix & Scrollbar**
+    * **Container:** Grid `1fr` (Hex) | `24px` (Scrollbar).
+    * **Component 1:** `HexView` (Raw Bytes).
+    * **Component 2:** `SemanticScrollbar` (Right Edge).
+        * **Visual:** A tall, thin strip visualizing file density/entropy.
+        * **Interaction:** Replaces the native browser scrollbar.
+
+### Pane C: The Inspector (Right - 320px)
+* **Top:** **Autocorrelation Graph** (Neon Cyan line chart).
+* **Middle:** **Data Inspector** (Int8, Float32, Timestamp).
+* **Bottom:** **Transformation Pipeline** (XOR blocks).
+
+## 4. Interaction Model
+* **Hover:** Hovering the Radar highlights the corresponding byte range in the Hex View (Ghost selection).
+* **Scroll:** Scrolling the Hex View moves the Reticle on the Radar AND the Thumb on the Semantic Scrollbar.

@@ -1,18 +1,17 @@
 # Security & Operational Checklist
 
-## 1. Deployment Environment
-- [ ] [cite_start]**Air-Gap Verification:** Ensure no libraries (like Google Fonts or Analytics) are making external network requests[cite: 126].
-- [ ] **Offline Mode:** The application must function 100% without internet access.
+## 1. Environment Constraints
+- [ ] **Air-Gap Verification:** Application must run with zero network permissions (Tauri `allowlist` restricted).
+- [ ] **Offline Mode:** No CDN links (Fonts/Scripts must be bundled locally).
 
-## 2. Input Handling (Rust Backend)
-- [ ] **Memory Safety:** Use Rust's borrow checker to prevent buffer overflows when reading malicious/corrupted files.
-- [ ] **Read-Only Access:** Ensure the file handle for the input binary is opened in `READ` mode only. [cite_start]No write permissions to the source file[cite: 126].
-- [ ] [cite_start]**Panic Handling:** Ensure the parser degrades gracefully (e.g., flagging as "Anomaly") rather than crashing the app when encountering unexpected byte sequences[cite: 10].
+## 2. Input Safety (Rust)
+- [ ] **Read-Only Lock:** File handles must be opened in `READ` mode only. No write access to source files.
+- [ ] **Zero-Copy Safety:** Ensure `unsafe` blocks in memory mapping are strictly bounded to prevent buffer overreads.
+- [ ] **Panic Handling:** Corrupt headers must degrade to "Unknown" classification, not crash the renderer.
 
-## 3. Execution Safety (WASM)
-- [ ] **Sandboxing:** Ensure all user-defined transformations (XOR, Decoding) run strictly within the WASM sandbox.
-- [ ] **Resource Limits:** Implement limits on loop iterations in the "XOR Solver" to prevent browser freezes (Denial of Service via complexity).
+## 3. Visualization Safety
+- [ ] **WebGL Context Loss:** Handle cases where the GPU context is lost (e.g., system sleep) by reloading the Radar texture.
+- [ ] **Render Limits:** Cap the Autocorrelation search to 4KB windows to prevent main-thread freezing.
 
-## 4. Data Privacy
-- [ ] **Zero Telemetry:** Confirm no usage data is sent back to developers.
-- [ ] **Local Processing:** All data stays in RAM/Disk on the local machine.
+## 4. Privacy
+- [ ] **No Telemetry:** Ensure no usage analytics or error reporting beacons are compiled into the production build.

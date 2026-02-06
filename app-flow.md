@@ -1,30 +1,29 @@
 # Application Flow & User Journey
 
-## Phase 1: Ingestion (The Funnel)
-1.  **Start:** User launches CIFAD Desktop (Tauri).
-2.  **Action:** Drag & Drop `crash_dump_2026.bin` into the dashboard.
-3.  **Process (Backend):**
-    * [cite_start]File is memory-mapped[cite: 27].
-    * [cite_start]Parallel scan initiates: Entropy Calc + Autocorrelation + Signature Search[cite: 103].
+## Phase 1: Ingestion
+1.  **Launch:** User opens CIFAD (Tauri Window).
+2.  **Action:** User drops `firmware.bin` (2GB) into the drop zone.
+3.  **Process:**
+    * File memory-mapped (Rust).
+    * Entropy & Hilbert calculations start (WASM Thread).
+    * UI transitions to "Cockpit Mode."
 
-## Phase 2: Triage (The Cockpit)
-1.  **Display:**
-    * **Left Pane:** "The Skeleton" (Tree view of detected regions).
-    * **Center:** "The Matrix" (Raw Hex) or "Global File Radar" (Hilbert Map).
-    * **Right Pane:** "The Inspector" (Data details) [based on Image 1].
-2.  **User Action:** User observes the Hilbert Map.
-    * *Scenario:* User sees a cluster of **Blue** pixels (Text Candidate).
-3.  **Interaction:** User clicks the Blue cluster.
-    * **System Response:** "The Matrix" (Hex view) auto-scrolls to the specific offset. "The Inspector" shows "As ASCII" preview [based on Image 1].
+## Phase 2: Visual Triage (The Twin-View)
+1.  **Global Scan:** User looks at the **Global Radar** (Top).
+    * *Observation:* A large Red block (Entropy > 7.5) suggests an encrypted payload.
+2.  **Navigation:**
+    * **Action:** User clicks the Red block on the Radar.
+    * **Response:**
+        1.  **Hex View** jumps to offset `0x004000`.
+        2.  **Semantic Scrollbar** thumb moves to the corresponding vertical position.
+        3.  **Autocorrelation Graph** updates to show patterns for this region.
 
-## Phase 3: Unmasking (The Analyst)
-1.  **Problem:** The text in the hex view looks garbled/obfuscated.
-2.  **Action:** User activates the **Transformation Pipeline** (Panel from Image 2).
-3.  **Step 3a (Auto):** System suggests "XOR Detected: Key 0xAA" [based on Image 2].
-4.  **Step 3b (Manual):** User adds "Decode TIP" block.
-5.  **Live Preview:** The "Live Transformation Preview" pane updates in real-time. [cite_start]Garbled bytes become readable Technical Interface Protocol strings[cite: 90].
+## Phase 3: Fine-Tuning
+1.  **Context Check:** User drags the **Semantic Scrollbar** slowly to scrub through the boundary of the encrypted block.
+2.  **Detail:** User spots a specific header pattern in the **Hex View**.
 
-## Phase 4: Output (The Report)
-1.  **Action:** User selects the decoded region.
-2.  **Command:** Click "Export Selected Regions" or "Generate Report" [based on Image 2].
-3.  **Result:** System saves `cleaned_artifact.bin` or a text report of the decoded TIP messages.
+## Phase 4: Unmasking
+1.  **Selection:** User highlights the header bytes.
+2.  **Analysis:** The **Inspector** shows "Pattern Strength: 98% (Periodicity 64)".
+3.  **Action:** User drags a "XOR Decoder" block into the Pipeline.
+4.  **Result:** The Hex View updates in real-time to show decoded text.
