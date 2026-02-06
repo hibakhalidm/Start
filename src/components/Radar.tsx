@@ -31,23 +31,30 @@ const Radar: React.FC<RadarProps> = ({ matrix, highlightOffset, selectionRange, 
         })
     ];
 
-    // 2. Selection Highlight (New!)
+    // 2. Selection Highlight (Improved)
     if (selectionRange) {
-        // We map a few points from the range to visualize it
-        // (Optimized: Just showing start point for now, could be expanded to full path)
-        const [x, y] = hilbert.offsetToXY(selectionRange.start);
+        // Calculate points for Start and End to draw a line or region
+        const startXY = hilbert.offsetToXY(selectionRange.start);
+        const endXY = hilbert.offsetToXY(selectionRange.end);
+
         layers.push(
             new ScatterplotLayer({
-                id: 'selection',
-                data: [{ position: [x + 0.5, y + 0.5] }],
+                id: 'selection-start',
+                data: [{ position: [startXY[0] + 0.5, startXY[1] + 0.5] }],
                 getPosition: (d: any) => d.position,
-                getFillColor: [0, 240, 255, 100], // Cyan Glow
-                getLineColor: [0, 240, 255, 255],
-                stroked: true,
-                radiusScale: 1,
-                radiusMinPixels: 4,
-                getRadius: 15
+                getFillColor: [0, 240, 255, 255], // Solid Cyan
+                getRadius: 4
+            }),
+            new ScatterplotLayer({
+                id: 'selection-end',
+                data: [{ position: [endXY[0] + 0.5, endXY[1] + 0.5] }],
+                getPosition: (d: any) => d.position,
+                getFillColor: [255, 40, 40, 255], // Red for End
+                getRadius: 4
             })
+            // Ideally, we would draw a PathLayer between these points, 
+            // but Hilbert curves are discontinuous in 2D space, 
+            // so just showing start/end is a good step 1.
         );
     }
 

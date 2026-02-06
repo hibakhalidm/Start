@@ -93,6 +93,12 @@ function App() {
         }
     };
 
+    const handleHexSelection = (start: number, end: number) => {
+        setSelectionRange({ start, end });
+        // Optional: Also highlight on Radar immediately
+        // setHoveredOffset(start); 
+    };
+
     return (
         <div className="app-container" style={{
             height: '100%',
@@ -162,6 +168,8 @@ function App() {
                                                 ref={hexViewRef}
                                                 window={viewWindow}
                                                 totalFileSize={fileObj?.size || 0}
+                                                selectionRange={selectionRange}
+                                                onSelect={handleHexSelection}
                                                 onScroll={handleHexScroll}
                                             />
                                         </div>
