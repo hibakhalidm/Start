@@ -65,3 +65,30 @@ body {
 ::-webkit-scrollbar-thumb:hover {
   background: var(--accent-cyan);
 }
+
+/* RESIZE HANDLES */
+.resize-handle {
+  width: 4px;
+  background: var(--bg-deep);
+  border-left: 1px solid #333;
+  border-right: 1px solid #333;
+  cursor: col-resize;
+  transition: background 0.2s;
+}
+
+.resize-handle:hover,
+.resize-handle[data-resize-handle-active] {
+  background: var(--accent-cyan);
+}
+
+.resize-handle-horizontal {
+  height: 4px;
+  background: var(--bg-deep);
+  border-top: 1px solid #333;
+  border-bottom: 1px solid #333;
+  cursor: row-resize;
+}
+
+.resize-handle-horizontal:hover {
+  background: var(--accent-cyan);
+}
