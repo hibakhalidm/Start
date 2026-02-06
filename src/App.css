@@ -1,30 +1,32 @@
 :root {
-  /* THEME: Deep Void (v3.0) */
   --bg-deep: #050505;
   --bg-panel: #0a0a0f;
   --bg-hover: #16161a;
-
-  /* ACCENTS */
   --accent-cyan: #00f0ff;
   --accent-red: #ff2a2a;
   --accent-blue: #3b82f6;
   --border-dim: #333333;
-
-  /* TYPOGRAPHY */
   --font-ui: 'Inter', system-ui, sans-serif;
   --font-mono: 'Fira Code', 'Consolas', monospace;
 }
 
-body {
+/* FIX: Force full height to prevent layout collapse */
+html,
+body,
+#root {
+  height: 100%;
+  width: 100%;
   margin: 0;
+  padding: 0;
+  overflow: hidden;
+}
+
+body {
   background-color: var(--bg-deep);
   color: #e2e8f0;
   font-family: var(--font-ui);
-  overflow: hidden;
-  /* App-like feel */
 }
 
-/* UTILITIES */
 .panel-header {
   font-size: 0.75rem;
   text-transform: uppercase;
@@ -33,6 +35,11 @@ body {
   padding: 8px 12px;
   background: rgba(0, 240, 255, 0.05);
   border-bottom: 1px solid var(--border-dim);
+  user-select: none;
+}
+
+.bg-panel {
+  background: var(--bg-panel);
 }
 
 .cyber-border-right {
@@ -43,11 +50,31 @@ body {
   border-left: 1px solid var(--border-dim);
 }
 
-.cyber-border-top {
-  border-top: 1px solid var(--border-dim);
+.resize-handle {
+  width: 4px;
+  background: var(--bg-deep);
+  cursor: col-resize;
+  transition: background 0.2s;
+  flex-shrink: 0;
+  /* FIX: Prevent handle collapse */
 }
 
-/* SCROLLBARS */
+.resize-handle:hover,
+.resize-handle[data-resize-handle-active] {
+  background: var(--accent-cyan);
+}
+
+.resize-handle-horizontal {
+  height: 4px;
+  background: var(--bg-deep);
+  cursor: row-resize;
+  flex-shrink: 0;
+}
+
+.resize-handle-horizontal:hover {
+  background: var(--accent-cyan);
+}
+
 ::-webkit-scrollbar {
   width: 8px;
   height: 8px;
@@ -63,32 +90,5 @@ body {
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: var(--accent-cyan);
-}
-
-/* RESIZE HANDLES */
-.resize-handle {
-  width: 4px;
-  background: var(--bg-deep);
-  border-left: 1px solid #333;
-  border-right: 1px solid #333;
-  cursor: col-resize;
-  transition: background 0.2s;
-}
-
-.resize-handle:hover,
-.resize-handle[data-resize-handle-active] {
-  background: var(--accent-cyan);
-}
-
-.resize-handle-horizontal {
-  height: 4px;
-  background: var(--bg-deep);
-  border-top: 1px solid #333;
-  border-bottom: 1px solid #333;
-  cursor: row-resize;
-}
-
-.resize-handle-horizontal:hover {
   background: var(--accent-cyan);
 }
