@@ -14,10 +14,16 @@ function App() {
     const { isReady, analyzeFile, result, isAnalyzing } = useAnalysisEngine();
     const [hoveredOffset, setHoveredOffset] = useState<number | null>(null);
     const [hilbert] = useState(() => new HilbertCurve(9)); // 512x512
+    const [fileData, setFileData] = useState<Uint8Array | null>(null);
 
-    const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
         if (e.target.files && e.target.files[0]) {
-            analyzeFile(e.target.files[0]);
+            const file = e.target.files[0];
+            analyzeFile(file);
+
+            // Read into memory for Hex View
+            const buffer = await file.arrayBuffer();
+            setFileData(new Uint8Array(buffer));
         }
     };
 
@@ -61,17 +67,9 @@ function App() {
 
             {/* Pane 3: Hex View */}
             <div className="hex-view" style={{ overflow: 'hidden' }}>
-                {result ? (
+                {fileData ? (
                     <HexView
-                        data={result.hilbert_matrix} // Ideally we pass the full raw file, but utilizing matrix for now or assuming result has it. 
-                        // Wait, result.hilbert_matrix is just the visual representation. 
-                        // Ideally we keep the file buffer in memory in JS or fetch chunks.
-                        // For this prototype, we'll pass the matrix buffer as "data" proxy or assume we read the file again.
-                        // NOTE: In a real app we'd pass the original ArrayBuffer.
-                        // Let's modify useAnalysisEngine to return the original buffer too?
-                        // Or just use the matrix for demo. I'll use matrix for demo but it might be shuffled if I did that in Rust.
-                        // Re-reading file for HexView is cleaner.
-                        // For now, assuming matrix is 1:1 data for demo.
+                        data={fileData}
                         onScroll={handleHexScroll}
                     />
                 ) : <div style={{ padding: '20px', color: '#475569' }}>No File Loaded</div>}

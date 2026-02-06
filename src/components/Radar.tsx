@@ -1,6 +1,6 @@
 import React from 'react';
 import DeckGL from '@deck.gl/react';
-import { BitmapLayer } from '@deck.gl/layers';
+import { BitmapLayer, ScatterplotLayer } from '@deck.gl/layers';
 import { HilbertCurve } from '../utils/hilbert';
 
 interface RadarProps {
@@ -26,54 +26,40 @@ const Radar: React.FC<RadarProps> = ({ matrix, highlightOffset, hilbert }) => {
 
     // transform matrix to pattern if needed, but assuming valid layout.
 
-    const layer = new BitmapLayer({
-        id: 'hilbert-bitmap',
-        image: {
-            width,
-            height,
-            data: matrix, // @deck.gl supports Uint8Array if format is specified? 
-            // Actually it usually wants ImageData or URL.
-            // If data is passed, it assumes RGB/RGBA.
-            // We might need to expand matrix to RGBA.
-        },
-        bounds: [0, 0, width, height]
-    });
+    const layers: any[] = [
+        new BitmapLayer({
+            id: 'hilbert-bitmap',
+            image: { width, height, data: matrix },
+            bounds: [0, 0, width, height]
+        })
+    ];
 
-    // TODO: Add a ScatterplotLayer or IconLayer for the "Reticle" at highlightOffset
+    if (highlightOffset !== null) {
+        const [x, y] = hilbert.offsetToXY(highlightOffset);
+        layers.push(
+            new ScatterplotLayer({
+                id: 'reticle',
+                data: [{ position: [x + 0.5, y + 0.5] }], // Center on pixel
+                getPosition: (d: any) => d.position,
+                getFillColor: [0, 255, 255, 0], // Transparent fill
+                getLineColor: [0, 255, 255, 255], // Cyan outline
+                getLineWidth: 2,
+                stroked: true,
+                radiusScale: 1,
+                radiusMinPixels: 3,
+                radiusMaxPixels: 20,
+                getRadius: 5 // Size of the reticle
+            })
+        );
+    }
 
     return (
         <div style={{ width: '100%', height: '100%' }}>
             <DeckGL
-                initialViewState={{
-                    target: [width / 2, height / 2, 0],
-                    zoom: 0,
-                    minZoom: -2,
-                    maxZoom: 5
-                }}
+                initialViewState={{ target: [width / 2, height / 2, 0], zoom: 0, minZoom: -2, maxZoom: 5 }}
                 controller={true}
-                layers={[layer]}
+                layers={layers}
             />
-            {/* Reticle Overlay */
-                highlightOffset !== null && (
-                    (() => {
-                        const [x, y] = hilbert.offsetToXY(highlightOffset);
-                        // Map x,y to screen space or DeckGL coordinates?
-                        // DeckGL coordinates are 1:1 with bounds.
-                        // Simple overlay div for now or DeckGL layer.
-                        // Using absolute div on top for simplicity in "Zero-Copy" constraint context (less GL overhead for single dot? No, GL is faster).
-                        // But I cannot easily inject into DeckGL context here without valid Viewport.
-                        return (
-                            <div style={{
-                                position: 'absolute',
-                                left: 0, top: 0,
-                                transform: `translate(${x}px, ${y}px)`, // Scale? DeckGL does scaling.
-                                // This overlay approach fails with Zoom. 
-                                // Correct way is another DeckGL layer.
-                            }} />
-                        )
-                    })()
-                )
-            }
         </div>
     );
 };

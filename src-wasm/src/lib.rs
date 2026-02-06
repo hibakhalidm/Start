@@ -8,6 +8,7 @@ pub struct AnalysisResult {
     #[serde(with = "serde_bytes")]
     pub hilbert_matrix: Vec<u8>,
     pub signatures: Vec<String>,
+    pub autocorrelation_graph: Vec<f64>,
 }
 
 impl AnalysisResult {
@@ -15,11 +16,13 @@ impl AnalysisResult {
         entropy_map: Vec<f64>,
         hilbert_matrix: Vec<u8>,
         signatures: Vec<String>,
+        autocorrelation_graph: Vec<f64>,
     ) -> AnalysisResult {
         AnalysisResult {
             entropy_map,
             hilbert_matrix,
             signatures,
+            autocorrelation_graph,
         }
     }
 }
@@ -32,6 +35,7 @@ pub fn analyze(data: &[u8]) -> Result<JsValue, JsValue> {
     let entropy_map = calculate_entropy_sliding_window(data, 256);
     let hilbert_matrix = generate_hilbert_matrix(data);
     let signatures = detect_signatures(data);
+    let autocorrelation_graph = calculate_autocorrelation_graph(data);
 
     // Autocorrelation check (Vendor Periodic detection)
     // In a real scenario, this might modify signatures or return a separate flag.
@@ -41,8 +45,38 @@ pub fn analyze(data: &[u8]) -> Result<JsValue, JsValue> {
         final_signatures.push("VENDOR_PERIODIC_DETECTED".to_string());
     }
 
-    let result = AnalysisResult::new(entropy_map, hilbert_matrix, final_signatures);
+    let result = AnalysisResult::new(
+        entropy_map,
+        hilbert_matrix,
+        final_signatures,
+        autocorrelation_graph,
+    );
     Ok(serde_wasm_bindgen::to_value(&result)?)
+}
+
+fn calculate_autocorrelation_graph(data: &[u8]) -> Vec<f64> {
+    // Analyze first 4KB for lag patterns 0..128
+    let len = data.len().min(4096);
+    let sample = &data[..len];
+    let max_lag = 128;
+    let mut graph = Vec::with_capacity(max_lag);
+
+    for lag in 0..max_lag {
+        let mut match_count = 0;
+        let comparisons = len - lag;
+        if comparisons == 0 {
+            graph.push(0.0);
+            continue;
+        }
+
+        for i in 0..comparisons {
+            if sample[i] == sample[i + lag] {
+                match_count += 1;
+            }
+        }
+        graph.push(match_count as f64 / comparisons as f64);
+    }
+    graph
 }
 
 fn calculate_entropy_sliding_window(data: &[u8], window_size: usize) -> Vec<f64> {

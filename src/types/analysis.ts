@@ -17,4 +17,10 @@ export interface AnalysisResult {
      * Maps to Vec<String> in Rust.
      */
     signatures: string[];
+
+    /**
+     * Autocorrelation graph data for detecting periodic patterns.
+     * Maps to Vec<f64> in Rust.
+     */
+    autocorrelation_graph: number[];
 }
