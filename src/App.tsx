@@ -234,6 +234,7 @@ function App() {
                                                 ref={hexViewRef}
                                                 window={viewWindow}
                                                 totalFileSize={fileObj?.size || 0}
+                                                stride={hexStride}
                                                 selectionRange={selectionRange}
                                                 onSelect={handleHexSelection}
                                                 onScroll={handleHexScroll}
@@ -261,7 +262,10 @@ function App() {
                                 }}>
                                     {selectedBytes ? 'LOCAL PERIODICITY (SELECTION)' : 'GLOBAL PERIODICITY (FILE)'}
                                 </div>
-                                <AutocorrelationGraph data={liveGraphData} />
+                                <AutocorrelationGraph
+                                    data={liveGraphData}
+                                    onLagSelect={handleLagSelect}
+                                />
                             </div>
                             <div style={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
                                 <TransformationPipeline selectedBytes={selectedBytes} />
