@@ -224,6 +224,7 @@ function App() {
                                     {isReady && result ? (
                                         <Radar
                                             matrix={result.hilbert_matrix}
+                                            entropyMap={result.entropy_map}
                                             highlightOffset={hoveredOffset}
                                             selectionRange={selectionRange}
                                             hilbert={hilbert}
