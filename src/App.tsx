@@ -43,6 +43,7 @@ function App() {
     // UI State
     const [hoveredOffset, setHoveredOffset] = useState<number | null>(null);
     const [selectionRange, setSelectionRange] = useState<{ start: number, end: number } | null>(null);
+    const [hexStride, setHexStride] = useState(16); // NEW STATE for Elastic View
 
     const [hilbert] = useState(() => new HilbertCurve(9));
     const hexViewRef = useRef<HexViewRef>(null);
@@ -68,6 +69,8 @@ function App() {
         if (e.target.files && e.target.files[0]) {
             const file = e.target.files[0];
             setFileObj(file);
+            // Reset View
+            setHexStride(16);
 
             // 1. Trigger Async Analysis (WASM)
             analyzeFile(file);
@@ -101,13 +104,20 @@ function App() {
     };
 
     const handleRadarJump = (offset: number) => {
-        handleRangeSelect(offset, offset + 16);
+        handleRangeSelect(offset, offset + hexStride);
     };
 
     const handleHexSelection = (start: number, end: number) => {
         setSelectionRange({ start, end });
         // Optional: Also highlight on Radar immediately
         // setHoveredOffset(start); 
+    };
+
+    // INTERACTION: Graph Click -> Set Hex View Width
+    const handleLagSelect = (lag: number) => {
+        if (lag < 1) return;
+        console.log("Aligning Hex View to lag:", lag);
+        setHexStride(lag);
     };
 
     // 1. CALCULATE SELECTED BYTES (Adapted for Zero-Copy)
