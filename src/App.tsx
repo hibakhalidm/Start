@@ -3,7 +3,8 @@ import { useAnalysisEngine } from './hooks/useAnalysisEngine';
 import { HilbertCurve } from './utils/hilbert';
 import Radar from './components/Radar';
 import HexView, { HexViewRef } from './components/HexView';
-import SemanticScrollbar from './components/SemanticScrollbar'; // The new component
+import SemanticScrollbar from './components/SemanticScrollbar';
+import AutocorrelationGraph from './components/AutocorrelationGraph'; // Make sure you created this component
 import './App.css';
 
 function App() {
@@ -119,6 +120,14 @@ function App() {
             <div className="bg-panel cyber-border-left">
                 <div className="panel-header">INSPECTOR</div>
                 <div style={{ padding: '20px' }}>
+
+                    {/* Autocorrelation Graph (Pattern Detection) */}
+                    {result && result.autocorrelation_graph.length > 0 && (
+                        <div style={{ marginBottom: '20px' }}>
+                            <AutocorrelationGraph data={result.autocorrelation_graph} />
+                        </div>
+                    )}
+
                     <h3 style={{ color: 'var(--accent-blue)', fontSize: '0.9rem' }}>METADATA</h3>
                     {result && (
                         <ul style={{ listStyle: 'none', padding: 0, fontSize: '0.85rem', color: '#888' }}>
