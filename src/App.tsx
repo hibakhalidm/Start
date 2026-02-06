@@ -49,8 +49,7 @@ function App() {
     };
 
     return (
-        <div className="app-container" style={{ height: '100vh', width: '100vw', background: 'var(--bg-deep)' }}>
-
+        <div className="app-container" style={{ height: '100vh', width: '100vw', background: 'var(--bg-deep)', display: 'flex', flexDirection: 'column' }}>
             {/* TOP BAR */}
             <div className="toolbar" style={{ height: '40px', borderBottom: '1px solid #333', display: 'flex', alignItems: 'center', padding: '0 20px' }}>
                 <span className="logo" style={{ color: 'var(--accent-cyan)', fontWeight: 'bold' }}>CIFAD</span>
