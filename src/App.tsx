@@ -1,14 +1,3 @@
-import React, { useState, useRef } from 'react';
-import { Panel, PanelGroup, PanelResizeHandle } from 'react-resizable-panels';
-import { useAnalysisEngine } from './hooks/useAnalysisEngine';
-import { HilbertCurve } from './utils/hilbert';
-import Radar from './components/Radar';
-import HexView, { HexViewRef } from './components/HexView';
-import SemanticScrollbar from './components/SemanticScrollbar';
-import AutocorrelationGraph from './components/AutocorrelationGraph';
-import FileTree from './components/FileTree';
-import './App.css';
-
 import React, { useState, useRef, useCallback } from 'react';
 import { Panel, PanelGroup, PanelResizeHandle } from 'react-resizable-panels';
 import { useAnalysisEngine } from './hooks/useAnalysisEngine';
