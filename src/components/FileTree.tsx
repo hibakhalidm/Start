@@ -1,11 +1,13 @@
 import React, { useState } from 'react';
-import { Folder, FileCode, ChevronDown, ChevronRight, Box } from 'lucide-react';
+import { Folder, FileCode, ChevronDown, ChevronRight, Box, ShieldCheck } from 'lucide-react';
 import { TlvNode } from '../types/analysis';
+import { DetectedStandard } from '../utils/standards';
 
 interface Props {
     file: File | null;
     fileSize?: number;
     structures?: TlvNode[];
+    standard?: DetectedStandard | null;
     onSelectRange: (start: number, end: number) => void;
 }
 
@@ -38,10 +40,29 @@ const TreeNode: React.FC<{ node: TlvNode, onSelect: (s: number, e: number) => vo
     );
 };
 
-const FileTree: React.FC<Props> = ({ file, structures, onSelectRange }) => {
+const FileTree: React.FC<Props> = ({ file, structures, standard, onSelectRange }) => {
     if (!file) return <div style={{ padding: '20px', color: '#555', fontSize: '0.8rem' }}>No File Loaded</div>;
     return (
         <div className="file-tree" style={{ padding: '10px' }}>
+            {/* 1. STANDARD COMPLIANCE BADGE (NEW) */}
+            {standard && (
+                <div style={{
+                    marginBottom: '15px',
+                    padding: '10px',
+                    background: `rgba(${standard.color === '#00ff9d' ? '0, 255, 157' : '0, 240, 255'}, 0.1)`,
+                    border: `1px solid ${standard.color}`,
+                    borderRadius: '4px'
+                }}>
+                    <div style={{ display: 'flex', alignItems: 'center', color: standard.color, fontWeight: 'bold', fontSize: '0.8rem' }}>
+                        <ShieldCheck size={14} style={{ marginRight: '6px' }} />
+                        {standard.name}
+                    </div>
+                    <div style={{ fontSize: '0.7rem', color: '#aaa', marginTop: '4px' }}>
+                        {standard.description}
+                    </div>
+                </div>
+            )}
+
             <div style={{ display: 'flex', alignItems: 'center', color: 'var(--text-mono)', marginBottom: '10px' }}>
                 <ChevronDown size={14} />
                 <FileCode size={14} style={{ marginLeft: '5px', color: 'var(--accent-blue)' }} />

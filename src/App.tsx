@@ -8,6 +8,7 @@ import SemanticScrollbar from './components/SemanticScrollbar';
 import AutocorrelationGraph from './components/AutocorrelationGraph';
 import FileTree from './components/FileTree';
 import TransformationPipeline from './components/TransformationPipeline';
+import { detectStandard, DetectedStandard } from './utils/standards';
 import './App.css';
 
 // Local Periodicity Helper
@@ -33,9 +34,19 @@ function App() {
     const [hoveredOffset, setHoveredOffset] = useState<number | null>(null);
     const [selectionRange, setSelectionRange] = useState<{ start: number, end: number } | null>(null);
 
+    const [standard, setStandard] = useState<DetectedStandard | null>(null); // <--- ADD STATE
     const [hexStride, setHexStride] = useState(16); // <-- New State
     const [hilbert] = useState(() => new HilbertCurve(9));
     const hexViewRef = useRef<HexViewRef>(null);
+
+    React.useEffect(() => {
+        if (result?.parsed_structures) {
+            const detected = detectStandard(result.parsed_structures);
+            setStandard(detected);
+        } else {
+            setStandard(null);
+        }
+    }, [result]);
 
     const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
         if (e.target.files && e.target.files[0]) {
@@ -80,7 +91,7 @@ function App() {
                         <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
                             <div className="panel-header">EXPLORER</div>
                             <div style={{ flex: 1, overflow: 'auto' }}>
-                                <FileTree file={fileObj} fileSize={fileData?.length} structures={result?.parsed_structures} onSelectRange={handleRangeSelect} />
+                                <FileTree file={fileObj} fileSize={fileData?.length} structures={result?.parsed_structures} standard={standard} onSelectRange={handleRangeSelect} />
                             </div>
                         </div>
                     </Panel>
