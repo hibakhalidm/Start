@@ -3,6 +3,8 @@ import { Panel, PanelGroup, PanelResizeHandle } from 'react-resizable-panels';
 import { useAnalysisEngine } from './hooks/useAnalysisEngine';
 import { HilbertCurve } from './utils/hilbert';
 import { detectStandard, DetectedStandard } from './utils/standards'; // <-- IMPORT
+import { generateReport } from './utils/export';
+import { Download } from 'lucide-react'; // Import Icon
 import Radar from './components/Radar';
 import HexView, { HexViewRef } from './components/HexView';
 import SemanticScrollbar from './components/SemanticScrollbar';
@@ -85,12 +87,37 @@ function App() {
         return result?.autocorrelation_graph || [];
     }, [selectedBytes, result]);
 
+    const handleExport = () => {
+        if (fileObj && result) {
+            generateReport(fileObj, result, standard);
+        }
+    };
+
     return (
         <div className="app-container" style={{ height: '100%', width: '100%', background: 'var(--bg-deep)', display: 'flex', flexDirection: 'column' }}>
-            <div className="toolbar" style={{ height: '40px', borderBottom: '1px solid #333', display: 'flex', alignItems: 'center', padding: '0 20px', flexShrink: 0 }}>
-                <span className="logo" style={{ color: 'var(--accent-cyan)', fontWeight: 'bold' }}>CIFAD</span>
-                <span style={{ margin: '0 10px', color: '#555' }}>/</span>
-                <input type="file" onChange={handleFileChange} style={{ fontSize: '12px', color: '#ccc' }} />
+            {/* Toolbar Content */}
+            <div className="toolbar" style={{ height: '40px', borderBottom: '1px solid #333', display: 'flex', alignItems: 'center', padding: '0 20px', flexShrink: 0, justifyContent: 'space-between' }}>
+                <div style={{ display: 'flex', alignItems: 'center' }}>
+                    <span className="logo" style={{ color: 'var(--accent-cyan)', fontWeight: 'bold' }}>CIFAD</span>
+                    <span style={{ margin: '0 10px', color: '#555' }}>/</span>
+                    <input type="file" onChange={handleFileChange} style={{ fontSize: '12px', color: '#ccc' }} />
+                </div>
+
+                {/* NEW EXPORT BUTTON */}
+                <button
+                    onClick={handleExport}
+                    disabled={!result}
+                    style={{
+                        background: result ? 'var(--accent-cyan)' : '#333',
+                        color: result ? '#000' : '#888',
+                        border: 'none', padding: '4px 12px', borderRadius: '4px',
+                        fontSize: '11px', fontWeight: 'bold', cursor: result ? 'pointer' : 'not-allowed',
+                        display: 'flex', alignItems: 'center', gap: '6px'
+                    }}
+                >
+                    <Download size={14} />
+                    EXPORT JSON
+                </button>
             </div>
 
             <div style={{ flex: 1, minHeight: 0, position: 'relative' }}>
