@@ -7,7 +7,7 @@ interface HexViewProps {
     onScroll: (offset: number) => void;
     onSelect: (start: number, end: number) => void;
     selectionRange: { start: number, end: number } | null;
-    hoverRange?: { start: number, end: number } | null; // <-- NEW PROP
+    hoverRange?: { start: number, end: number } | null; // <--- NEW
 }
 
 export interface HexViewRef { scrollToOffset: (offset: number) => void; }
@@ -27,7 +27,6 @@ const HexView = forwardRef<HexViewRef, HexViewProps>(({
         }
     }));
 
-    // Mouse handlers (same as before)
     const handleByteDown = (index: number) => { setIsDragging(true); setDragStart(index); onSelect(index, index); };
     const handleByteEnter = (index: number) => { if (isDragging && dragStart !== null) onSelect(Math.min(dragStart, index), Math.max(dragStart, index)); };
     const handleMouseUp = () => { setIsDragging(false); setDragStart(null); };
@@ -49,7 +48,8 @@ const HexView = forwardRef<HexViewRef, HexViewProps>(({
                 <div style={{ display: 'flex', marginRight: '16px', flexWrap: 'nowrap' }}>
                     {rowData.map(({ val, idx }) => {
                         const isSelected = selectionRange && idx >= selectionRange.start && idx <= selectionRange.end;
-                        const isHovered = !isSelected && hoverRange && idx >= hoverRange.start && idx < hoverRange.end; // Ghost Effect
+                        const isHovered = !isSelected && hoverRange && idx >= hoverRange.start && idx < hoverRange.end; // <--- GHOST LOGIC
+
                         return (
                             <span
                                 key={idx} onMouseDown={() => handleByteDown(idx)} onMouseEnter={() => handleByteEnter(idx)} onMouseUp={handleMouseUp}
@@ -57,7 +57,7 @@ const HexView = forwardRef<HexViewRef, HexViewProps>(({
                                     marginRight: '6px',
                                     color: isSelected ? '#000' : (isHovered ? 'var(--accent-cyan)' : '#a5b3ce'),
                                     background: isSelected ? 'var(--accent-cyan)' : (isHovered ? 'rgba(0, 240, 255, 0.1)' : 'transparent'),
-                                    border: isHovered ? '1px solid rgba(0, 240, 255, 0.3)' : '1px solid transparent',
+                                    border: isHovered ? '1px solid rgba(0, 240, 255, 0.3)' : '1px solid transparent', // <--- GHOST BORDER
                                     cursor: 'pointer', padding: '0 1px', borderRadius: '2px'
                                 }}
                             >

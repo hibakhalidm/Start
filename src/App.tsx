@@ -2,9 +2,10 @@ import React, { useState, useRef, useMemo, useEffect } from 'react';
 import { Panel, PanelGroup, PanelResizeHandle } from 'react-resizable-panels';
 import { useAnalysisEngine } from './hooks/useAnalysisEngine';
 import { HilbertCurve } from './utils/hilbert';
-import { detectStandard, DetectedStandard } from './utils/standards'; // <-- IMPORT
-import { generateReport } from './utils/export';
-import { Download } from 'lucide-react'; // Import Icon
+import { detectStandard, DetectedStandard } from './utils/standards';
+import { generateReport } from './utils/export'; // <--- IMPORT EXPORT
+import { Download } from 'lucide-react'; // <--- IMPORT ICON
+
 import Radar from './components/Radar';
 import HexView, { HexViewRef } from './components/HexView';
 import SemanticScrollbar from './components/SemanticScrollbar';
@@ -13,57 +14,42 @@ import FileTree from './components/FileTree';
 import TransformationPipeline from './components/TransformationPipeline';
 import './App.css';
 
-// Simple auto-correlation for the graph (same as before)
 const calculateLocalAutocorrelation = (data: Uint8Array): number[] => {
-    // ... (This function is likely unchanged, assuming user wants the same logic)
-    // For brevity, I will assume the previous implementation or a simplified one is sufficient if not provided in the snippet.
-    // However, since I am overwriting the file, I must ensure I don't lose the implementation.
-    // I will use the logic from the previous file view or standard implementation.
-
-    // Let's use a meaningful placeholder or the actual logic if I can recall it from previous turns. 
-    // Wait, I should probably check the file content first to be safe, but the user GAVE me the file content in Step 348.
-    // I will use the code exactly as provided in Step 348's request for App.tsx.
-
-    // Re-implementing based on previous context/standard approach:
-    const windowSize = 256;
-    const stride = 64;
-    const result = [];
-    for (let i = 0; i < data.length - windowSize; i += stride) {
-        let sum = 0;
-        for (let j = 0; j < windowSize - 1; j++) {
-            sum += Math.abs(data[i + j] - data[i + j + 1]);
+    if (!data || data.length < 16) return [];
+    const maxLag = Math.min(64, Math.floor(data.length / 2));
+    const results = [];
+    for (let lag = 1; lag < maxLag; lag++) {
+        let sum = 0, count = 0;
+        for (let i = 0; i < data.length - lag; i++) {
+            sum += (255 - Math.abs(data[i] - data[i + lag]));
+            count++;
         }
-        result.push(sum / windowSize);
+        results.push(sum / count / 255);
     }
-    return result;
+    return results;
 };
 
 function App() {
     const { isReady, analyzeFile, result } = useAnalysisEngine();
     const [fileData, setFileData] = useState<Uint8Array | null>(null);
     const [fileObj, setFileObj] = useState<File | null>(null);
+
+    // Interactivity State
     const [hoveredOffset, setHoveredOffset] = useState<number | null>(null);
     const [selectionRange, setSelectionRange] = useState<{ start: number, end: number } | null>(null);
-    const [hoverRange, setHoverRange] = useState<{ start: number, end: number } | null>(null); // <-- NEW STATE
-    const [standard, setStandard] = useState<DetectedStandard | null>(null); // <-- NEW STATE
+    const [hoverRange, setHoverRange] = useState<{ start: number, end: number } | null>(null); // <--- NEW STATE
+    const [standard, setStandard] = useState<DetectedStandard | null>(null);
 
     const [hexStride, setHexStride] = useState(16);
     const [hilbert] = useState(() => new HilbertCurve(9));
     const hexViewRef = useRef<HexViewRef>(null);
 
-    // Run Standard Detection
-    useEffect(() => {
-        if (result?.parsed_structures) {
-            setStandard(detectStandard(result.parsed_structures));
-        } else {
-            setStandard(null);
-        }
-    }, [result]);
-
     const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
         if (e.target.files && e.target.files[0]) {
             const file = e.target.files[0];
             setFileObj(file);
+            setStandard(null);
+            setSelectionRange(null);
             analyzeFile(file);
             const buffer = await file.arrayBuffer();
             setFileData(new Uint8Array(buffer));
@@ -76,7 +62,12 @@ function App() {
         hexViewRef.current?.scrollToOffset(start);
     };
 
-    // Calculate Data specific to current selection
+    useEffect(() => {
+        if (result?.parsed_structures) {
+            setStandard(detectStandard(result.parsed_structures));
+        }
+    }, [result]);
+
     const selectedBytes = useMemo(() => {
         if (!fileData || !selectionRange) return null;
         return fileData.slice(selectionRange.start, Math.min(selectionRange.end, selectionRange.start + 65536));
@@ -87,15 +78,9 @@ function App() {
         return result?.autocorrelation_graph || [];
     }, [selectedBytes, result]);
 
-    const handleExport = () => {
-        if (fileObj && result) {
-            generateReport(fileObj, result, standard);
-        }
-    };
-
     return (
         <div className="app-container" style={{ height: '100%', width: '100%', background: 'var(--bg-deep)', display: 'flex', flexDirection: 'column' }}>
-            {/* Toolbar Content */}
+            {/* TOOLBAR */}
             <div className="toolbar" style={{ height: '40px', borderBottom: '1px solid #333', display: 'flex', alignItems: 'center', padding: '0 20px', flexShrink: 0, justifyContent: 'space-between' }}>
                 <div style={{ display: 'flex', alignItems: 'center' }}>
                     <span className="logo" style={{ color: 'var(--accent-cyan)', fontWeight: 'bold' }}>CIFAD</span>
@@ -103,16 +88,17 @@ function App() {
                     <input type="file" onChange={handleFileChange} style={{ fontSize: '12px', color: '#ccc' }} />
                 </div>
 
-                {/* NEW EXPORT BUTTON */}
+                {/* EXPORT BUTTON */}
                 <button
-                    onClick={handleExport}
+                    onClick={() => fileObj && result && generateReport(fileObj, result, standard)}
                     disabled={!result}
                     style={{
-                        background: result ? 'var(--accent-cyan)' : '#333',
-                        color: result ? '#000' : '#888',
-                        border: 'none', padding: '4px 12px', borderRadius: '4px',
+                        background: result ? 'rgba(0, 240, 255, 0.1)' : '#222',
+                        color: result ? 'var(--accent-cyan)' : '#555',
+                        border: result ? '1px solid var(--accent-cyan)' : '1px solid #333',
+                        padding: '4px 12px', borderRadius: '4px',
                         fontSize: '11px', fontWeight: 'bold', cursor: result ? 'pointer' : 'not-allowed',
-                        display: 'flex', alignItems: 'center', gap: '6px'
+                        display: 'flex', alignItems: 'center', gap: '6px', transition: 'all 0.2s'
                     }}
                 >
                     <Download size={14} />
@@ -122,31 +108,39 @@ function App() {
 
             <div style={{ flex: 1, minHeight: 0, position: 'relative' }}>
                 <PanelGroup direction="horizontal">
-                    {/* LEFT PANEL */}
                     <Panel defaultSize={20} minSize={10} className="bg-panel cyber-border-right">
                         <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
                             <div className="panel-header">EXPLORER</div>
                             <div style={{ flex: 1, overflow: 'auto' }}>
                                 <FileTree
                                     file={fileObj}
-                                    fileSize={fileData?.length}
                                     structures={result?.parsed_structures}
-                                    standard={standard} // <-- PASS PROP
+                                    standard={standard}
+
+                                    // --- TWIN-VIEW CONNECTION ---
+                                    selectionOffset={selectionRange?.start ?? null}
+                                    // ----------------------------
+
                                     onSelectRange={handleRangeSelect}
-                                    onHoverRange={setHoverRange} // <-- PASS PROP
+                                    onHoverRange={setHoverRange} // <--- WIRE IT UP
                                 />
                             </div>
                         </div>
                     </Panel>
                     <PanelResizeHandle className="resize-handle" />
-
-                    {/* CENTER PANEL */}
                     <Panel minSize={30}>
                         <PanelGroup direction="vertical">
                             <Panel defaultSize={50} minSize={20}>
                                 <div style={{ height: '100%', position: 'relative' }}>
                                     {isReady && result ? (
-                                        <Radar matrix={result.hilbert_matrix} entropyMap={result.entropy_map} highlightOffset={hoveredOffset} selectionRange={selectionRange} hilbert={hilbert} onJump={(off) => handleRangeSelect(off, off + 16)} />
+                                        <Radar
+                                            matrix={result.hilbert_matrix}
+                                            entropyMap={result.entropy_map}
+                                            highlightOffset={hoveredOffset}
+                                            selectionRange={selectionRange}
+                                            hilbert={hilbert}
+                                            onJump={(off) => handleRangeSelect(off, off + 16)}
+                                        />
                                     ) : <div style={{ height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#555' }}>NO SIGNAL</div>}
                                 </div>
                             </Panel>
@@ -162,7 +156,7 @@ function App() {
                                                     data={fileData}
                                                     stride={hexStride}
                                                     selectionRange={selectionRange}
-                                                    hoverRange={hoverRange} // <-- PASS PROP
+                                                    hoverRange={hoverRange} // <--- PASS IT DOWN
                                                     onSelect={handleRangeSelect}
                                                     onScroll={(off) => setHoveredOffset(off)}
                                                 />
@@ -177,8 +171,6 @@ function App() {
                         </PanelGroup>
                     </Panel>
                     <PanelResizeHandle className="resize-handle" />
-
-                    {/* RIGHT PANEL */}
                     <Panel defaultSize={30} minSize={20} className="bg-panel cyber-border-left">
                         <div className="panel-header">INSPECTOR</div>
                         <div style={{ padding: '20px', display: 'flex', flexDirection: 'column', height: 'calc(100% - 30px)' }}>
