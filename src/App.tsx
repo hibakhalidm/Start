@@ -3,19 +3,18 @@ import { Panel, PanelGroup, PanelResizeHandle } from 'react-resizable-panels';
 import { useAnalysisEngine } from './hooks/useAnalysisEngine';
 import { HilbertCurve } from './utils/hilbert';
 import { detectStandard, DetectedStandard } from './utils/standards';
-import { generateReport } from './utils/export'; // <--- IMPORT EXPORT
-import { Download } from 'lucide-react'; // <--- IMPORT ICON
+import { generateReport } from './utils/export';
+import { Download } from 'lucide-react';
 
 import Radar from './components/Radar';
 import HexView, { HexViewRef } from './components/HexView';
 import SemanticScrollbar from './components/SemanticScrollbar';
 import AutocorrelationGraph from './components/AutocorrelationGraph';
 import FileTree from './components/FileTree';
+import StructureInspector from './components/StructureInspector'; // Import new inspector
 import TransformationPipeline from './components/TransformationPipeline';
+import { TlvNode } from './types/analysis'; // Import type
 import './App.css';
-
-import StructureInspector from './components/StructureInspector';
-import { TlvNode } from './types/analysis';
 
 const calculateLocalAutocorrelation = (data: Uint8Array): number[] => {
     if (!data || data.length < 16) return [];
@@ -40,9 +39,9 @@ function App() {
     // Interactivity State
     const [hoveredOffset, setHoveredOffset] = useState<number | null>(null);
     const [selectionRange, setSelectionRange] = useState<{ start: number, end: number } | null>(null);
-    const [hoverRange, setHoverRange] = useState<{ start: number, end: number } | null>(null); // <--- NEW STATE
+    const [hoverRange, setHoverRange] = useState<{ start: number, end: number } | null>(null);
     const [standard, setStandard] = useState<DetectedStandard | null>(null);
-    const [selectedNode, setSelectedNode] = useState<TlvNode | null>(null); // <--- NEW STATE
+    const [selectedNode, setSelectedNode] = useState<TlvNode | null>(null); // <--- Node Selection State
 
     const [hexStride, setHexStride] = useState(16);
     const [hilbert] = useState(() => new HilbertCurve(9));
@@ -52,9 +51,11 @@ function App() {
         if (e.target.files && e.target.files[0]) {
             const file = e.target.files[0];
             setFileObj(file);
+            // Reset all state on new file
             setStandard(null);
             setSelectionRange(null);
-            setSelectedNode(null); // <--- RESET SELECTION
+            setSelectedNode(null);
+
             analyzeFile(file);
             const buffer = await file.arrayBuffer();
             setFileData(new Uint8Array(buffer));
@@ -92,8 +93,6 @@ function App() {
                     <span style={{ margin: '0 10px', color: '#555' }}>/</span>
                     <input type="file" onChange={handleFileChange} style={{ fontSize: '12px', color: '#ccc' }} />
                 </div>
-
-                {/* EXPORT BUTTON */}
                 <button
                     onClick={() => fileObj && result && generateReport(fileObj, result, standard)}
                     disabled={!result}
@@ -101,18 +100,17 @@ function App() {
                         background: result ? 'rgba(0, 240, 255, 0.1)' : '#222',
                         color: result ? 'var(--accent-cyan)' : '#555',
                         border: result ? '1px solid var(--accent-cyan)' : '1px solid #333',
-                        padding: '4px 12px', borderRadius: '4px',
-                        fontSize: '11px', fontWeight: 'bold', cursor: result ? 'pointer' : 'not-allowed',
-                        display: 'flex', alignItems: 'center', gap: '6px', transition: 'all 0.2s'
+                        padding: '4px 12px', borderRadius: '4px', fontSize: '11px', fontWeight: 'bold', cursor: result ? 'pointer' : 'not-allowed',
+                        display: 'flex', alignItems: 'center', gap: '6px'
                     }}
                 >
-                    <Download size={14} />
-                    EXPORT JSON
+                    <Download size={14} /> EXPORT JSON
                 </button>
             </div>
 
             <div style={{ flex: 1, minHeight: 0, position: 'relative' }}>
                 <PanelGroup direction="horizontal">
+                    {/* LEFT PANEL */}
                     <Panel defaultSize={20} minSize={10} className="bg-panel cyber-border-right">
                         <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
                             <div className="panel-header">EXPLORER</div>
@@ -121,23 +119,23 @@ function App() {
                                     file={fileObj}
                                     structures={result?.parsed_structures}
                                     standard={standard}
-
-                                    // --- TWIN-VIEW CONNECTION ---
                                     selectionOffset={selectionRange?.start ?? null}
-                                    // ----------------------------
-
                                     onSelectRange={handleRangeSelect}
-                                    onHoverRange={setHoverRange} // <--- WIRE IT UP
-                                    onNodeSelect={(node) => setSelectedNode(node)} // <--- CONNECT NODE SELECTION
+                                    onHoverRange={setHoverRange}
+                                    onNodeSelect={(node) => setSelectedNode(node)} // Connect Tree to Inspector
                                 />
                             </div>
                         </div>
                     </Panel>
                     <PanelResizeHandle className="resize-handle" />
+
+                    {/* CENTER PANEL */}
                     <Panel minSize={30}>
                         <PanelGroup direction="vertical">
+                            {/* GLOBAL SIGNAL (Whole File) */}
                             <Panel defaultSize={50} minSize={20}>
-                                <div style={{ height: '100%', position: 'relative' }}>
+                                <div style={{ height: '100%', position: 'relative', display: 'flex', flexDirection: 'column' }}>
+                                    <div className="panel-header" style={{ position: 'absolute', top: 0, left: 0, zIndex: 10 }}>GLOBAL SIGNAL (ENTROPY & HILBERT)</div>
                                     {isReady && result ? (
                                         <Radar
                                             matrix={result.hilbert_matrix}
@@ -151,10 +149,12 @@ function App() {
                                 </div>
                             </Panel>
                             <PanelResizeHandle className="resize-handle-horizontal" />
+
+                            {/* HEX MATRIX */}
                             <Panel minSize={20}>
                                 <div style={{ display: 'flex', height: '100%' }}>
                                     <div style={{ flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
-                                        <div className="panel-header">MATRIX</div>
+                                        <div className="panel-header">RAW MATRIX</div>
                                         <div style={{ flex: 1 }}>
                                             {fileData && (
                                                 <HexView
@@ -162,7 +162,7 @@ function App() {
                                                     data={fileData}
                                                     stride={hexStride}
                                                     selectionRange={selectionRange}
-                                                    hoverRange={hoverRange} // <--- PASS IT DOWN
+                                                    hoverRange={hoverRange}
                                                     onSelect={handleRangeSelect}
                                                     onScroll={(off) => setHoveredOffset(off)}
                                                 />
@@ -177,12 +177,20 @@ function App() {
                         </PanelGroup>
                     </Panel>
                     <PanelResizeHandle className="resize-handle" />
+
+                    {/* RIGHT PANEL (Local Focus) */}
                     <Panel defaultSize={30} minSize={20} className="bg-panel cyber-border-left">
-                        <div className="panel-header">INSPECTOR</div>
+                        <div className="panel-header">LOCAL INSPECTION</div>
                         <div style={{ padding: '20px', display: 'flex', flexDirection: 'column', height: 'calc(100% - 30px)' }}>
                             {selectedNode ? (
-                                <StructureInspector node={selectedNode} fileData={fileData} />
+                                // Show Inspector if a node is selected
+                                <StructureInspector
+                                    node={selectedNode}
+                                    fileData={fileData}
+                                    onFocus={handleRangeSelect} // Allow inspector to control view
+                                />
                             ) : (
+                                // Show Graphs if nothing selected
                                 <>
                                     <AutocorrelationGraph data={liveGraphData} onLagSelect={setHexStride} />
                                     <div style={{ flex: 1, marginTop: '20px', overflow: 'hidden' }}>
