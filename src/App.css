@@ -1,87 +1,29 @@
 :root {
   --bg-deep: #050505;
-  --bg-panel: #0a0a0f;
-  --bg-hover: #16161a;
+  --bg-panel: #0a0a0a;
   --accent-cyan: #00f0ff;
-  --accent-red: #ff2a2a;
-  --accent-blue: #3b82f6;
-  --border-dim: #333333;
-  --font-ui: 'Inter', system-ui, sans-serif;
-  --font-mono: 'Fira Code', 'Consolas', monospace;
-}
-
-/* FIX: Force full height to prevent layout collapse */
-html,
-body,
-#root {
-  height: 100%;
-  width: 100%;
-  margin: 0;
-  padding: 0;
-  overflow: hidden;
+  --accent-blue: #0070f3;
+  --border-dim: #222;
+  --text-muted: #666;
 }
 
 body {
+  margin: 0;
   background-color: var(--bg-deep);
-  color: #e2e8f0;
-  font-family: var(--font-ui);
+  color: #eee;
+  font-family: 'Inter', system-ui, sans-serif;
+  overflow: hidden;
+  /* Prevent body scroll */
 }
 
-.panel-header {
-  font-size: 0.75rem;
-  text-transform: uppercase;
-  letter-spacing: 0.1em;
-  color: var(--accent-cyan);
-  padding: 8px 12px;
-  background: rgba(0, 240, 255, 0.05);
-  border-bottom: 1px solid var(--border-dim);
-  user-select: none;
-}
-
-.bg-panel {
-  background: var(--bg-panel);
-}
-
-.cyber-border-right {
-  border-right: 1px solid var(--border-dim);
-}
-
-.cyber-border-left {
-  border-left: 1px solid var(--border-dim);
-}
-
-.resize-handle {
-  width: 4px;
-  background: var(--bg-deep);
-  cursor: col-resize;
-  transition: background 0.2s;
-  flex-shrink: 0;
-  /* FIX: Prevent handle collapse */
-}
-
-.resize-handle:hover,
-.resize-handle[data-resize-handle-active] {
-  background: var(--accent-cyan);
-}
-
-.resize-handle-horizontal {
-  height: 4px;
-  background: var(--bg-deep);
-  cursor: row-resize;
-  flex-shrink: 0;
-}
-
-.resize-handle-horizontal:hover {
-  background: var(--accent-cyan);
-}
-
+/* 1. CUSTOM SCROLLBARS (Premium Feel) */
 ::-webkit-scrollbar {
   width: 8px;
   height: 8px;
 }
 
 ::-webkit-scrollbar-track {
-  background: var(--bg-panel);
+  background: #000;
 }
 
 ::-webkit-scrollbar-thumb {
@@ -91,4 +33,41 @@ body {
 
 ::-webkit-scrollbar-thumb:hover {
   background: var(--accent-cyan);
+}
+
+/* 2. UTILITIES */
+.panel-header {
+  font-size: 10px;
+  font-weight: bold;
+  letter-spacing: 1px;
+  color: var(--text-muted);
+  padding: 8px 12px;
+  background: rgba(0, 0, 0, 0.5);
+  border-bottom: 1px solid var(--border-dim);
+  backdrop-filter: blur(5px);
+  z-index: 10;
+  text-transform: uppercase;
+}
+
+/* 3. DROP ZONE ANIMATION */
+@keyframes pulse-border {
+  0% {
+    border-color: #333;
+    box-shadow: 0 0 0 0 rgba(0, 240, 255, 0);
+  }
+
+  50% {
+    border-color: var(--accent-cyan);
+    box-shadow: 0 0 20px 0 rgba(0, 240, 255, 0.3);
+  }
+
+  100% {
+    border-color: #333;
+    box-shadow: 0 0 0 0 rgba(0, 240, 255, 0);
+  }
+}
+
+.drop-active {
+  animation: pulse-border 2s infinite;
+  background: rgba(0, 240, 255, 0.05);
 }
