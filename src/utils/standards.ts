@@ -1,8 +1,10 @@
+// src/utils/standards.ts
 import { TlvNode } from '../types/analysis';
 
 export interface DetectedStandard {
     name: string;
     description: string;
+    category: string;
     confidence: 'HIGH' | 'MEDIUM' | 'LOW';
     color: string;
 }
@@ -10,34 +12,39 @@ export interface DetectedStandard {
 export const detectStandard = (nodes: TlvNode[]): DetectedStandard | null => {
     if (!nodes || nodes.length === 0) return null;
 
+    // Root detection
     const root = nodes[0];
 
-    // HEURISTIC: ETSI TS 101 671 (Lawful Interception)
-    // Pattern: Root Sequence (0x30) containing Integer (0x02) and nested data
-    if (root.name.includes("Sequence") || root.name.includes("0x30")) {
-        const hasInteger = root.children.some(c => c.name.includes("Integer") || c.name.includes("0x02"));
-        const hasString = root.children.some(c => c.name.includes("OctetString") || c.name.includes("0x04"));
-        const hasNested = root.children.some(c => c.is_container);
+    // 1. SIGNATURE: ETSI Lawful Interception (TS 101 671)
+    // Looking for Sequence (0x30) or specific context tags (0xA1, 0xA2)
+    const hasEtsiTags = nodes.some(n => n.tag === 0xA1 || n.tag === 0xA2);
 
-        if (hasInteger && hasString && hasNested) {
-            return {
-                name: "ETSI TS 101 671",
-                description: "Lawful Interception (Handover Interface)",
-                confidence: "HIGH",
-                color: "#00ff9d" // Neon Green
-            };
-        }
-    }
-
-    // HEURISTIC: Generic ASN.1 BER
-    if (root.is_container && root.children.length > 0) {
+    if (root.tag === 0x30 && hasEtsiTags) {
         return {
-            name: "ASN.1 BER Structure",
-            description: "Basic Encoding Rules (Generic)",
-            confidence: "MEDIUM",
-            color: "#00f0ff" // Cyan
+            name: "ETSI TS 101 671",
+            description: "Handover Interface (HI2/HI3) Communication Signal",
+            category: "TELECOM / FORENSIC",
+            confidence: "HIGH",
+            color: "#00ff9d"
         };
     }
 
-    return null;
+    // 2. SIGNATURE: Generic ASN.1 Binary
+    if (root.tag === 0x30 || root.tag === 0x31) {
+        return {
+            name: "ASN.1 / BER Structure",
+            description: "Structured Data Container (Hierarchical)",
+            category: "DATA ENCODING",
+            confidence: "MEDIUM",
+            color: "#00f0ff"
+        };
+    }
+
+    return {
+        name: "Custom Binary Format",
+        description: "Unidentified structural patterns detected.",
+        category: "UNKNOWN",
+        confidence: "LOW",
+        color: "#aaa"
+    };
 };

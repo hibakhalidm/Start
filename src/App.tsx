@@ -208,15 +208,26 @@ function App() {
 
                     {/* RIGHT PANEL: INSPECTOR */}
                     <Panel defaultSize={25} minSize={20} className="bg-panel cyber-border-left">
-                        <div className="panel-header">DETAILS</div>
-                        <div style={{ padding: '20px', display: 'flex', flexDirection: 'column', height: 'calc(100% - 30px)' }}>
-                            {selectedNode ? (
-                                <StructureInspector node={selectedNode} fileData={fileData} onFocus={(s, e) => handleJumpTo(s, e - s)} />
-                            ) : (
-                                <div style={{ marginTop: '20px' }}>
-                                    <TransformationPipeline selectedBytes={selectedBytes} />
-                                </div>
+                        <div className="panel-header">DETAILS & TOOLS</div>
+                        <div style={{ padding: '15px', display: 'flex', flexDirection: 'column', height: 'calc(100% - 30px)', gap: '20px', overflowY: 'auto' }}>
+
+                            {/* 1. STRUCTURAL INSPECTOR (Always at top if node selected) */}
+                            {selectedNode && (
+                                <section style={{ borderBottom: '1px solid #333', paddingBottom: '20px' }}>
+                                    <StructureInspector
+                                        node={selectedNode}
+                                        fileData={fileData}
+                                        onFocus={(s, e) => handleJumpTo(s, e - s)}
+                                    />
+                                </section>
                             )}
+
+                            {/* 2. TRANSFORMATION PIPELINE (Always available) */}
+                            <section style={{ flex: 1 }}>
+                                <div style={{ fontSize: '10px', color: 'var(--accent-cyan)', marginBottom: '10px' }}>DATA PIPELINE</div>
+                                <TransformationPipeline selectedBytes={selectedBytes} />
+                            </section>
+
                         </div>
                     </Panel>
                 </PanelGroup>

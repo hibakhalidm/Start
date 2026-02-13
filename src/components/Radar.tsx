@@ -2,7 +2,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import DeckGL from '@deck.gl/react';
 import { BitmapLayer, ScatterplotLayer } from '@deck.gl/layers';
 import { HilbertCurve } from '../utils/hilbert';
-import { Box, Activity } from 'lucide-react';
+import { Box, Activity, ZoomIn, ZoomOut, Maximize } from 'lucide-react';
 
 interface RadarProps {
     matrix: Uint8Array;
@@ -15,6 +15,7 @@ interface RadarProps {
 
 const Radar: React.FC<RadarProps> = ({ matrix, entropyMap = [], highlightOffset, selectionRange, hilbert, onJump }) => {
     const [viewMode, setViewMode] = useState<'HILBERT' | 'LINEAR'>('HILBERT');
+    const [zoom, setZoom] = useState(0);
 
     const getHilbertLayers = () => {
         const layers: any[] = [
@@ -82,14 +83,33 @@ const Radar: React.FC<RadarProps> = ({ matrix, entropyMap = [], highlightOffset,
         <div style={{ width: '100%', height: '100%', display: 'flex', flexDirection: 'column' }}>
             <div style={{ height: '32px', borderBottom: '1px solid #333', display: 'flex', alignItems: 'center', padding: '0 10px', justifyContent: 'space-between', background: '#0a0a0f' }}>
                 <span style={{ fontSize: '10px', color: '#555', letterSpacing: '1px' }}>GLOBAL RADAR</span>
-                <div style={{ display: 'flex', gap: '5px' }}>
+
+                <div style={{ display: 'flex', gap: '5px', alignItems: 'center' }}>
+                    {/* Zoom Controls */}
+                    {viewMode === 'HILBERT' && (
+                        <div style={{ display: 'flex', gap: '2px', marginRight: '10px', borderRight: '1px solid #333', paddingRight: '10px' }}>
+                            <button onClick={() => setZoom(z => Math.max(z - 1, -2))} title="Zoom Out" style={{ background: 'transparent', border: 'none', cursor: 'pointer', color: '#888' }}><ZoomOut size={12} /></button>
+                            <span style={{ fontSize: '9px', color: '#555', minWidth: '20px', textAlign: 'center' }}>{Math.round(zoom * 10) / 10}x</span>
+                            <button onClick={() => setZoom(z => Math.min(z + 1, 10))} title="Zoom In" style={{ background: 'transparent', border: 'none', cursor: 'pointer', color: '#888' }}><ZoomIn size={12} /></button>
+                            <button onClick={() => setZoom(0)} title="Reset Zoom" style={{ background: 'transparent', border: 'none', cursor: 'pointer', color: '#888' }}><Maximize size={12} /></button>
+                        </div>
+                    )}
+
+                    {/* View toggles */}
                     <button onClick={() => setViewMode('HILBERT')} style={{ background: viewMode === 'HILBERT' ? 'var(--accent-cyan)' : 'transparent', border: '1px solid #333', padding: '2px', cursor: 'pointer' }}><Box size={14} color={viewMode === 'HILBERT' ? '#000' : '#888'} /></button>
                     <button onClick={() => setViewMode('LINEAR')} style={{ background: viewMode === 'LINEAR' ? 'var(--accent-cyan)' : 'transparent', border: '1px solid #333', padding: '2px', cursor: 'pointer' }}><Activity size={14} color={viewMode === 'LINEAR' ? '#000' : '#888'} /></button>
                 </div>
             </div>
             <div style={{ flex: 1, position: 'relative', overflow: 'hidden' }}>
                 {viewMode === 'HILBERT' ? (
-                    <DeckGL initialViewState={{ target: [256, 256, 0], zoom: 0, minZoom: -2, maxZoom: 10 }} controller={true} layers={getHilbertLayers()} getCursor={() => 'crosshair'} style={{ background: '#000' }} />
+                    <DeckGL
+                        viewState={{ target: [256, 256, 0], zoom: zoom, minZoom: -2, maxZoom: 10 }}
+                        onViewStateChange={({ viewState }) => setZoom(viewState.zoom)}
+                        controller={true}
+                        layers={getHilbertLayers()}
+                        getCursor={() => 'crosshair'}
+                        style={{ background: '#000' }}
+                    />
                 ) : <LinearView />}
             </div>
         </div>
