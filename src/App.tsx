@@ -33,8 +33,9 @@ function App() {
     const [fileObj, setFileObj] = useState<File | null>(null);
     const [hoveredOffset, setHoveredOffset] = useState<number | null>(null);
     const [selectionRange, setSelectionRange] = useState<{ start: number, end: number } | null>(null);
-
+    const [hoverRange, setHoverRange] = useState<{ start: number, end: number } | null>(null); // <-- NEW STATE
     const [standard, setStandard] = useState<DetectedStandard | null>(null); // <--- ADD STATE
+
     const [hexStride, setHexStride] = useState(16); // <-- New State
     const [hilbert] = useState(() => new HilbertCurve(9));
     const hexViewRef = useRef<HexViewRef>(null);
@@ -91,7 +92,14 @@ function App() {
                         <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
                             <div className="panel-header">EXPLORER</div>
                             <div style={{ flex: 1, overflow: 'auto' }}>
-                                <FileTree file={fileObj} fileSize={fileData?.length} structures={result?.parsed_structures} standard={standard} onSelectRange={handleRangeSelect} />
+                                <FileTree
+                                    file={fileObj}
+                                    fileSize={fileData?.length}
+                                    structures={result?.parsed_structures}
+                                    standard={standard}
+                                    onSelectRange={handleRangeSelect}
+                                    onHoverRange={setHoverRange} // <-- PASS PROP
+                                />
                             </div>
                         </div>
                     </Panel>
@@ -113,7 +121,17 @@ function App() {
                                     <div style={{ flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
                                         <div className="panel-header">MATRIX</div>
                                         <div style={{ flex: 1 }}>
-                                            {fileData && <HexView ref={hexViewRef} data={fileData} stride={hexStride} selectionRange={selectionRange} onSelect={handleRangeSelect} onScroll={(off) => setHoveredOffset(off)} />}
+                                            {fileData && (
+                                                <HexView
+                                                    ref={hexViewRef}
+                                                    data={fileData}
+                                                    stride={hexStride}
+                                                    selectionRange={selectionRange}
+                                                    onSelect={handleRangeSelect}
+                                                    onScroll={(off) => setHoveredOffset(off)}
+                                                    hoverRange={hoverRange} // <-- PASS PROP
+                                                />
+                                            )}
                                         </div>
                                     </div>
                                     <div style={{ width: '24px', borderLeft: '1px solid #333' }}>

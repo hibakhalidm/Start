@@ -1,25 +1,8 @@
 import { useState, useEffect, useCallback } from 'react';
-import { AnalysisResult } from '../types/analysis';
+import { AnalysisResult, TlvNode } from '../types/analysis';
 
-// Dynamic import for WASM module
+// Standard dynamic import for the WASM module
 const importWasm = async () => {
-    // In a real Vite setup with vite-plugin-wasm, this might differ slightly
-    // but typically we import the init function or the module.
-    // Assuming 'cifad-wasm' is the package name or path.
-    // For local dev, we often point to the pkg folder.
-    // Adjust path as needed for the specific build setup.
-    // const wasm = await import('../../src-wasm/pkg'); 
-    // return wasm;
-
-    // For this prototype code, we'll assume the user has configured vite-plugin-wasm
-    // and can import directly or via a wrapper.
-    // We'll define a placeholder here or try to import if path is known.
-    // Let's assume standard `import init, { analyze } from "cifad-wasm"` pattern
-    // coupled with vite config.
-
-    // TEMPORARY: using a mock or expecting global for the snippet if package not linked.
-    // But since we are providing the CODE, we should write standard code.
-
     // @ts-ignore
     return import('../../src-wasm/pkg/cifad_wasm');
 };
@@ -31,66 +14,52 @@ export const useAnalysisEngine = () => {
 
     useEffect(() => {
         const initWasm = async () => {
-            const wasm = await importWasm();
-            if (wasm.default) {
-                await wasm.default(); // Initialize if default export is init function
+            try {
+                const wasm = await importWasm();
+                if (wasm.default && typeof wasm.default === 'function') {
+                    await wasm.default(); // Initialize WASM memory
+                }
+                setIsReady(true);
+            } catch (e) {
+                console.error("Failed to initialize WASM engine:", e);
             }
-            setIsReady(true);
         };
-        initWasm().catch(console.error);
+        initWasm();
     }, []);
 
     const analyzeFile = useCallback(async (file: File) => {
-        if (!isReady) {
-            console.error("WASM engine not ready");
-            return;
-        }
+        if (!isReady) return;
 
         setIsAnalyzing(true);
         try {
             const buffer = await file.arrayBuffer();
             const bytes = new Uint8Array(buffer);
-
             const wasm = await importWasm();
-            // Zero-copy usually implies passing the pointer or memory view.
-            // wasm-bindgen handles passing &[u8] as a view usually.
 
+            // 1. Run Physics Engine (Entropy, Hilbert, Autocorrelation)
             const rawResult = wasm.analyze(bytes);
 
-            // Attempt to extract ETSI/TLV structure
-            let parsed_structures = [];
+            // 2. Run Logic Engine (Recursive TLV Parser)
+            // We run this separately so parser failures don't kill the whole analysis
+            let parsed_structures: TlvNode[] = [];
             try {
                 if (wasm.parse_file_structure) {
                     parsed_structures = wasm.parse_file_structure(bytes);
-                } else {
-                    console.warn("parse_file_structure not found in WASM module");
                 }
             } catch (e) {
-                console.warn("Parsing failed or no TLV structures found", e);
+                console.warn("TLV Parser warning:", e);
+                // We swallow the parser error so the user still gets the visual analysis
             }
 
-            // Construct the TS object from the raw WASM result if needed, 
-            // but wasm-bindgen structs are objects in JS.
-            // We need to merge the rawResult (which has entropy, etc) with our new parsed_structures
-            // effectively extending the object. 
-            // rawResult is likely an object from Rust.
-
-            // IMPORTANT: The Rust `analyze` function returns `AnalysisResult`. 
-            // We need to inject `parsed_structures` into it if it's not part of the Rust struct (which it isn't in my previous edit of lib.rs).
-            // Wait, the user prompt asked me to update `src/types/analysis.ts` separately.
-            // But the Rust `AnalysisResult` struct was NOT updated in `lib.rs` to include `parsed_structures`.
-            // The `parse_file_structure` is a SEPARATE function.
-            // So we need to combine them here.
-
-            const combinedResult = {
+            // 3. Merge Results
+            setResult({
                 ...rawResult,
                 parsed_structures
-            };
-
-            setResult(combinedResult);
+            });
 
         } catch (err) {
-            console.error("Analysis failed:", err);
+            console.error("Critical Analysis Failure:", err);
+            setResult(null);
         } finally {
             setIsAnalyzing(false);
         }
