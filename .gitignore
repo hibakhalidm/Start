@@ -8,3 +8,4 @@ coverage
 target_build/
 src-wasm/target_build/
 test_files/
+*.md
