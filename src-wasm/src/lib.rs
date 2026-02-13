@@ -241,3 +241,100 @@ fn detect_autocorrelation(data: &[u8]) -> bool {
     }
     false
 }
+
+#[derive(Serialize, Deserialize, Debug)]
+pub struct TlvNode {
+    pub name: String,
+    pub offset: usize,
+    pub tag_length: usize,
+    pub value_length: usize,
+    pub is_container: bool,
+    pub children: Vec<TlvNode>,
+}
+
+#[wasm_bindgen]
+pub fn parse_file_structure(data: &[u8]) -> Result<JsValue, JsValue> {
+    let mut nodes = Vec::new();
+    let mut cursor = 0;
+
+    while cursor < data.len() {
+        if let Some(node) = parse_tlv_node(data, cursor, 0) {
+            cursor = node.offset + node.tag_length + node.value_length;
+            nodes.push(node);
+        } else {
+            cursor += 1;
+        }
+    }
+    Ok(serde_wasm_bindgen::to_value(&nodes).map_err(|e| e.to_string())?)
+}
+
+fn parse_tlv_node(data: &[u8], offset: usize, depth: usize) -> Option<TlvNode> {
+    if offset >= data.len() || depth > 10 {
+        return None;
+    }
+
+    let tag = data[offset];
+    let is_container = (tag & 0x20) == 0x20;
+    let mut current_offset = offset + 1;
+
+    if current_offset >= data.len() {
+        return None;
+    }
+
+    let length_byte = data[current_offset];
+    let mut value_length = 0;
+    let mut tag_len = 2;
+
+    if length_byte & 0x80 == 0 {
+        value_length = length_byte as usize;
+    } else {
+        let num_length_bytes = (length_byte & 0x7F) as usize;
+        if num_length_bytes > 4 || current_offset + num_length_bytes >= data.len() {
+            return None;
+        }
+
+        for i in 0..num_length_bytes {
+            value_length = (value_length << 8) | (data[current_offset + 1 + i] as usize);
+        }
+        tag_len += num_length_bytes;
+    }
+
+    current_offset += tag_len - 1;
+    if current_offset + value_length > data.len() {
+        return None;
+    }
+
+    let mut children = Vec::new();
+    if is_container && value_length > 0 {
+        let mut child_cursor = current_offset;
+        let end_limit = current_offset + value_length;
+
+        while child_cursor < end_limit {
+            if let Some(child) = parse_tlv_node(data, child_cursor, depth + 1) {
+                child_cursor = child.offset + child.tag_length + child.value_length;
+                children.push(child);
+            } else {
+                break;
+            }
+        }
+    }
+
+    let name = if tag == 0x30 {
+        "ETSI_Sequence".to_string()
+    } else if tag == 0x02 {
+        "Integer".to_string()
+    } else if tag == 0x04 {
+        "OctetString".to_string()
+    } else {
+        format!("Tag_0x{:02X}", tag)
+    };
+
+    Some(TlvNode {
+        name,
+        offset,
+        tag_length: tag_len,
+        value_length,
+        is_container,
+        children,
+    })
+}

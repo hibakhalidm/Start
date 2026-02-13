@@ -57,10 +57,37 @@ export const useAnalysisEngine = () => {
 
             const rawResult = wasm.analyze(bytes);
 
-            // Convert or usage rawResult directly.
+            // Attempt to extract ETSI/TLV structure
+            let parsed_structures = [];
+            try {
+                if (wasm.parse_file_structure) {
+                    parsed_structures = wasm.parse_file_structure(bytes);
+                } else {
+                    console.warn("parse_file_structure not found in WASM module");
+                }
+            } catch (e) {
+                console.warn("Parsing failed or no TLV structures found", e);
+            }
+
             // Construct the TS object from the raw WASM result if needed, 
             // but wasm-bindgen structs are objects in JS.
-            setResult(rawResult);
+            // We need to merge the rawResult (which has entropy, etc) with our new parsed_structures
+            // effectively extending the object. 
+            // rawResult is likely an object from Rust.
+
+            // IMPORTANT: The Rust `analyze` function returns `AnalysisResult`. 
+            // We need to inject `parsed_structures` into it if it's not part of the Rust struct (which it isn't in my previous edit of lib.rs).
+            // Wait, the user prompt asked me to update `src/types/analysis.ts` separately.
+            // But the Rust `AnalysisResult` struct was NOT updated in `lib.rs` to include `parsed_structures`.
+            // The `parse_file_structure` is a SEPARATE function.
+            // So we need to combine them here.
+
+            const combinedResult = {
+                ...rawResult,
+                parsed_structures
+            };
+
+            setResult(combinedResult);
 
         } catch (err) {
             console.error("Analysis failed:", err);

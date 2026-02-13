@@ -2,7 +2,6 @@ import React, { useEffect, useRef } from 'react';
 
 interface Props {
     data: number[];
-    // NEW: Callback when a lag is clicked
     onLagSelect?: (lag: number) => void;
 }
 
@@ -18,7 +17,6 @@ const AutocorrelationGraph: React.FC<Props> = ({ data, onLagSelect }) => {
         const height = canvas.height;
         ctx.clearRect(0, 0, width, height);
 
-        // Styling
         ctx.strokeStyle = '#00f0ff';
         ctx.lineWidth = 2;
         ctx.beginPath();
@@ -32,19 +30,12 @@ const AutocorrelationGraph: React.FC<Props> = ({ data, onLagSelect }) => {
             else ctx.lineTo(x, y);
         });
         ctx.stroke();
-
     }, [data]);
 
-    // Handle Click to Select Peak
     const handleClick = (e: React.MouseEvent) => {
         if (!onLagSelect || !canvasRef.current) return;
-
         const rect = canvasRef.current.getBoundingClientRect();
-        const x = e.clientX - rect.left;
-        const width = rect.width;
-
-        // Convert Pixel X -> Lag Index
-        const percent = x / width;
+        const percent = (e.clientX - rect.left) / rect.width;
         const lagIndex = Math.floor(percent * data.length);
 
         if (lagIndex > 0) {
@@ -56,7 +47,7 @@ const AutocorrelationGraph: React.FC<Props> = ({ data, onLagSelect }) => {
         <div style={{ background: '#0a0a0f', padding: '10px', border: '1px solid #333' }}>
             <div style={{ fontSize: '0.75rem', color: '#888', marginBottom: '5px', display: 'flex', justifyContent: 'space-between' }}>
                 <span>PERIODICITY SIGNAL</span>
-                <span style={{ color: 'var(--accent-cyan)', cursor: 'pointer' }}>CLICK PEAK TO ALIGN</span>
+                <span style={{ color: 'var(--accent-cyan)' }}>CLICK PEAK TO ALIGN</span>
             </div>
             <canvas
                 ref={canvasRef}

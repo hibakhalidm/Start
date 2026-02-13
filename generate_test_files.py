@@ -63,6 +63,54 @@ def gen_png_signature():
     # PNG Magic Bytes: 89 50 4E 47 0D 0A 1A 0A
     return b'\x89PNG\r\n\x1a\n' + b'\x00' * 100
 
+def gen_tlv_structure():
+    """
+    Generates a recursive ASN.1 BER/TLV structure.
+    Root: Sequence (0x30)
+      - Integer (0x02)
+      - OctetString (0x04)
+      - Sequence (0x30)
+        - Integer (0x02)
+        - OctetString (0x04)
+        - Sequence (0x30) [Deep Nesting]
+          - Integer
+    """
+    def make_tlv(tag, value):
+        # Tag
+        data = bytes([tag])
+        # Length
+        l = len(value)
+        if l < 128:
+            data += bytes([l])
+        else:
+            # Long form length
+            # Simple implementation for < 65535
+            if l < 256:
+                data += bytes([0x81, l])
+            else:
+                data += bytes([0x82, (l >> 8) & 0xFF, l & 0xFF])
+        # Value
+        data += value
+        return data
+
+    # Leaf nodes
+    int_val1 = make_tlv(0x02, b'\x01\x02\x03\x04') # Integer 4 bytes
+    str_val1 = make_tlv(0x04, b'Hello TLV World') # OctetString
+
+    # Deeply nested
+    deep_int = make_tlv(0x02, b'\xFF' * 10)
+    deep_seq = make_tlv(0x30, deep_int)
+    
+    # Mid level
+    mid_seq_content = int_val1 + str_val1 + deep_seq
+    mid_seq = make_tlv(0x30, mid_seq_content)
+
+    # Root
+    root_content = make_tlv(0x02, b'\x00') + mid_seq + make_tlv(0x04, b'Tail data')
+    root = make_tlv(0x30, root_content)
+    
+    return root
+
 # -------------------------------------------------------------------------
 # MAIN EXECUTION
 # -------------------------------------------------------------------------
@@ -95,6 +143,11 @@ def main():
         gen_metadata_simulation(1024 * 100)  # 100KB Metadata (Red)
     )
     write_file("mixed_forensic_image.bin", mixed_data)
+
+    # 5. TLV Recursive Structure (The "Parser Engine" Test)
+    # Tests: Recursive Parser, File Tree, Hex View selection
+    tlv_data = gen_tlv_structure()
+    write_file("test_tlv_strict.bin", tlv_data)
 
     print(f"\nDone. Files located in ./{OUTPUT_DIR}/")
 
