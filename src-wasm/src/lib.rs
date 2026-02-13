@@ -269,7 +269,7 @@ pub fn parse_file_structure(data: &[u8]) -> Result<JsValue, JsValue> {
 }
 
 fn parse_tlv_node(data: &[u8], offset: usize, depth: usize) -> Option<TlvNode> {
-    if offset >= data.len() || depth > 10 {
+    if offset >= data.len() || depth > 64 {
         return None;
     }
 

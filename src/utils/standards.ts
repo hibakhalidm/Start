@@ -10,12 +10,10 @@ export interface DetectedStandard {
 export const detectStandard = (nodes: TlvNode[]): DetectedStandard | null => {
     if (!nodes || nodes.length === 0) return null;
 
-    // Check for our specific Test File signature (Root Sequence 0x30 containing Integer 0x02)
-    // In a real scenario, this would check for ETSI OIDs or specific Tag hierarchies.
     const root = nodes[0];
 
     // HEURISTIC: ETSI TS 101 671 (Lawful Interception)
-    // Pattern: Root Sequence containing at least one Integer and one OctetString
+    // Pattern: Root Sequence (0x30) containing Integer (0x02) and nested data
     if (root.name.includes("Sequence") || root.name.includes("0x30")) {
         const hasInteger = root.children.some(c => c.name.includes("Integer") || c.name.includes("0x02"));
         const hasString = root.children.some(c => c.name.includes("OctetString") || c.name.includes("0x04"));
@@ -31,11 +29,11 @@ export const detectStandard = (nodes: TlvNode[]): DetectedStandard | null => {
         }
     }
 
-    // HEURISTIC: Simple ASN.1 Container
+    // HEURISTIC: Generic ASN.1 BER
     if (root.is_container && root.children.length > 0) {
         return {
-            name: "Generic ASN.1 BER",
-            description: "Basic Encoding Rules Structure",
+            name: "ASN.1 BER Structure",
+            description: "Basic Encoding Rules (Generic)",
             confidence: "MEDIUM",
             color: "#00f0ff" // Cyan
         };
