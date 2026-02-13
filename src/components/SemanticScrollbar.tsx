@@ -1,86 +1,65 @@
 import React, { useRef, useEffect } from 'react';
 
 interface Props {
-    entropyMap: number[]; // 1D array of entropy values (0.0 - 8.0)
-    onScroll: (percentage: number) => void;
-    currentPercent: number; // 0.0 - 1.0
+    entropyMap: number[];
+    onScroll: (percent: number) => void;
+    currentPercent: number;
+    visiblePercent?: number;
 }
 
-const SemanticScrollbar: React.FC<Props> = ({ entropyMap, onScroll, currentPercent }) => {
-    const canvasRef = useRef<HTMLCanvasElement>(null);
+const SemanticScrollbar: React.FC<Props> = ({ entropyMap, onScroll, currentPercent, visiblePercent = 0.05 }) => {
     const containerRef = useRef<HTMLDivElement>(null);
 
-    // DRAW THE ENTROPY MAP
-    useEffect(() => {
-        const canvas = canvasRef.current;
-        const ctx = canvas?.getContext('2d');
-        if (!canvas || !ctx || entropyMap.length === 0) return;
-
-        const { width, height } = canvas;
-        ctx.clearRect(0, 0, width, height);
-
-        // Draw density lines
-        const step = height / entropyMap.length;
-
-        entropyMap.forEach((val, i) => {
-            const y = i * step;
-            // Color Logic: Red = Encrypted (>7.0), Blue = Text (<4.0), Grey = Data
-            if (val > 7.0) ctx.fillStyle = '#ff2a2a';
-            else if (val < 4.0) ctx.fillStyle = '#3b82f6';
-            else ctx.fillStyle = '#333';
-
-            ctx.fillRect(0, y, width, Math.ceil(step));
-        });
-
-    }, [entropyMap]);
-
-    // HANDLE INTERACTION (Click & Drag)
-    const handleInteraction = (e: React.MouseEvent) => {
+    const handleMouseDown = (e: React.MouseEvent) => {
         if (!containerRef.current) return;
         const rect = containerRef.current.getBoundingClientRect();
         const y = e.clientY - rect.top;
-        const percent = Math.min(1, Math.max(0, y / rect.height));
+        const percent = Math.max(0, Math.min(1, y / rect.height));
         onScroll(percent);
     };
 
     return (
-        <div
-            ref={containerRef}
-            className="semantic-scrollbar"
-            style={{
-                width: '100%',
-                height: '100%',
-                position: 'relative',
-                background: '#0a0a0f',
-                cursor: 'pointer'
-            }}
-            onMouseDown={(e) => {
-                if (e.buttons === 1) handleInteraction(e);
-            }}
-            onMouseMove={(e) => {
-                if (e.buttons === 1) handleInteraction(e);
-            }}
-        >
-            {/* The Visualization */}
-            <canvas
-                ref={canvasRef}
-                width={24}
-                height={800} // Fixed render height, CSS scales it
-                style={{ width: '100%', height: '100%', display: 'block' }}
-            />
+        <div ref={containerRef} style={{ width: '100%', height: '100%', position: 'relative', background: '#050505', cursor: 'crosshair', borderLeft: '1px solid #333' }} onMouseDown={handleMouseDown}>
+            {/* HEATMAP LAYER */}
+            {entropyMap.map((val, i) => {
+                // val is 0.0 (low entropy) to 1.0 (high entropy)
+                // FIX: Use HSL for accurate representation
+                // 0.0 -> Dark Blue (Structure/Nulls)
+                // 1.0 -> Bright Cyan/White (Encrypted/Compressed)
 
-            {/* The "Thumb" (Current Position Indicator) */}
-            <div style={{
-                position: 'absolute',
-                top: `${currentPercent * 100}%`,
-                left: 0,
-                right: 0,
-                height: '40px',
-                border: '2px solid var(--accent-cyan)',
-                background: 'rgba(0, 240, 255, 0.2)',
-                transform: 'translateY(-50%)',
-                pointerEvents: 'none' // Let clicks pass through to canvas
-            }} />
+                const lightness = 10 + (val * 60); // 10% to 70% lightness
+                const color = `hsl(180, 100%, ${lightness}%)`;
+
+                return (
+                    <div
+                        key={i}
+                        style={{
+                            position: 'absolute',
+                            top: `${(i / entropyMap.length) * 100}%`,
+                            left: 0, right: 0,
+                            height: `${100 / entropyMap.length}%`,
+                            background: color,
+                            opacity: 0.8 // slight transparency to blend
+                        }}
+                    />
+                );
+            })}
+
+            {/* INTERACTIVE CYAN BOX */}
+            <div
+                style={{
+                    position: 'absolute',
+                    top: `${currentPercent * 100}%`,
+                    left: 0, right: 0,
+                    height: `${Math.max(visiblePercent * 100, 2)}%`,
+                    border: '2px solid #fff',
+                    background: 'rgba(255, 255, 255, 0.2)',
+                    boxShadow: '0 0 8px rgba(255,255,255,0.8)',
+                    zIndex: 10,
+                    pointerEvents: 'none',
+                    transition: 'top 0.05s linear'
+                }}
+            />
         </div>
     );
 };

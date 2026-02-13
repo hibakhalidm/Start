@@ -1,61 +1,70 @@
-import React, { useEffect, useRef } from 'react';
+import React, { useMemo, useState } from 'react';
+import { Activity, Minimize2, Maximize2 } from 'lucide-react';
 
 interface Props {
-    data: number[];
-    onLagSelect?: (lag: number) => void;
+    fileData: Uint8Array | null; // Takes WHOLE file now
+    onLagSelect: (lag: number) => void;
 }
 
-const AutocorrelationGraph: React.FC<Props> = ({ data, onLagSelect }) => {
-    const canvasRef = useRef<HTMLCanvasElement>(null);
+const AutocorrelationGraph: React.FC<Props> = ({ fileData, onLagSelect }) => {
+    const [isMinimized, setIsMinimized] = useState(false);
 
-    useEffect(() => {
-        const canvas = canvasRef.current;
-        const ctx = canvas?.getContext('2d');
-        if (!canvas || !ctx || data.length === 0) return;
+    // Calculate a "Global Signal Profile" instead of local autocorrelation
+    // This represents the byte density/variance across the whole file
+    const graphData = useMemo(() => {
+        if (!fileData) return [];
+        const width = 200; // Number of bars
+        const chunkSize = Math.floor(fileData.length / width);
+        const data = [];
 
-        const width = canvas.width;
-        const height = canvas.height;
-        ctx.clearRect(0, 0, width, height);
-
-        ctx.strokeStyle = '#00f0ff';
-        ctx.lineWidth = 2;
-        ctx.beginPath();
-
-        const stepX = width / data.length;
-
-        data.forEach((val, i) => {
-            const x = i * stepX;
-            const y = height - (val * height);
-            if (i === 0) ctx.moveTo(x, y);
-            else ctx.lineTo(x, y);
-        });
-        ctx.stroke();
-    }, [data]);
-
-    const handleClick = (e: React.MouseEvent) => {
-        if (!onLagSelect || !canvasRef.current) return;
-        const rect = canvasRef.current.getBoundingClientRect();
-        const percent = (e.clientX - rect.left) / rect.width;
-        const lagIndex = Math.floor(percent * data.length);
-
-        if (lagIndex > 0) {
-            onLagSelect(lagIndex);
+        for (let i = 0; i < width; i++) {
+            const start = i * chunkSize;
+            const end = start + chunkSize;
+            // Calculate simple variance/activity for this chunk
+            let sum = 0;
+            for (let j = start; j < end; j++) sum += fileData[j];
+            const avg = sum / chunkSize;
+            data.push(avg);
         }
-    };
+        return data;
+    }, [fileData]);
+
+    if (isMinimized) {
+        return (
+            <div style={{ padding: '10px', background: '#111', borderBottom: '1px solid #333', display: 'flex', justifyContent: 'space-between' }}>
+                <span style={{ fontSize: '0.7rem', color: 'var(--accent-cyan)' }}>GLOBAL SIGNAL</span>
+                <Minimize2 size={14} color="#555" style={{ cursor: 'pointer' }} onClick={() => setIsMinimized(false)} />
+            </div>
+        );
+    }
 
     return (
-        <div style={{ background: '#0a0a0f', padding: '10px', border: '1px solid #333' }}>
-            <div style={{ fontSize: '0.75rem', color: '#888', marginBottom: '5px', display: 'flex', justifyContent: 'space-between' }}>
-                <span>PERIODICITY SIGNAL</span>
-                <span style={{ color: 'var(--accent-cyan)' }}>CLICK PEAK TO ALIGN</span>
+        <div style={{ background: '#050505', borderBottom: '1px solid #333', height: '100px', display: 'flex', flexDirection: 'column' }}>
+            <div style={{ padding: '4px 10px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <span style={{ fontSize: '0.7rem', color: '#555', letterSpacing: '1px' }}>GLOBAL DENSITY OVERVIEW</span>
+                <Maximize2 size={12} color="#555" style={{ cursor: 'pointer' }} onClick={() => setIsMinimized(true)} />
             </div>
-            <canvas
-                ref={canvasRef}
-                width={280}
-                height={100}
-                onClick={handleClick}
-                style={{ width: '100%', height: '100px', cursor: 'crosshair' }}
-            />
+
+            <div style={{ flex: 1, display: 'flex', alignItems: 'flex-end', padding: '0 10px 10px 10px', gap: '1px' }}>
+                {graphData.map((val, i) => (
+                    <div
+                        key={i}
+                        onClick={() => {
+                            // Rough jump to section
+                            const offset = Math.floor((i / graphData.length) * (fileData?.length || 0));
+                            onLagSelect(offset); // HACK: We reuse onLagSelect to signal a jump
+                        }}
+                        style={{
+                            flex: 1,
+                            height: `${(val / 255) * 100}%`,
+                            background: '#333',
+                            cursor: 'pointer',
+                            transition: 'height 0.2s'
+                        }}
+                        title={`Click to jump to ~${(i / graphData.length * 100).toFixed(0)}%`}
+                    />
+                ))}
+            </div>
         </div>
     );
 };

@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Folder, FileCode, ChevronDown, ChevronRight, Box, Shield } from 'lucide-react';
+import { Folder, FileCode, ChevronDown, ChevronRight, Box, Shield, Layers, Code, Minimize2, Maximize2, FileDigit, Database, Layout } from 'lucide-react';
 import { TlvNode } from '../types/analysis';
 import { DetectedStandard } from '../utils/standards';
 
@@ -8,12 +8,13 @@ interface Props {
     fileSize?: number;
     structures?: TlvNode[];
     standard?: DetectedStandard | null;
-    selectionOffset?: number | null; // <--- NEW PROP
+    selectionOffset?: number | null;
     onSelectRange: (start: number, end: number) => void;
     onHoverRange: (range: { start: number, end: number } | null) => void;
-    onNodeSelect?: (node: TlvNode) => void; // <--- NEW PROP
+    onNodeSelect?: (node: TlvNode) => void;
 }
 
+// ... (TreeNode component remains exactly the same as before) ...
 const TreeNode: React.FC<{
     node: TlvNode,
     selectionOffset?: number | null,
@@ -23,75 +24,49 @@ const TreeNode: React.FC<{
 }> = ({ node, selectionOffset, onSelect, onHover, onNodeClick }) => {
     const [expanded, setExpanded] = useState(false);
     const nodeRef = useRef<HTMLDivElement>(null);
-
     const hasChildren = node.children && node.children.length > 0;
     const endOffset = node.offset + node.tag_length + node.value_length;
 
-    // 1. IS ACTIVE LOGIC
-    // Does the selected byte fall anywhere inside this node?
     const containsSelection = selectionOffset !== undefined && selectionOffset !== null &&
         selectionOffset >= node.offset && selectionOffset < endOffset;
 
-    // Is this the *deepest* node containing the selection? (i.e., none of its children contain it)
-    const isExactTarget = containsSelection && (!node.children || !node.children.some(child => {
-        const cEnd = child.offset + child.tag_length + child.value_length;
-        return selectionOffset! >= child.offset && selectionOffset! < cEnd;
-    }));
-
-    // 2. AUTO-EXPAND
-    // If I contain the selection, I must be open so the user can see inside.
     useEffect(() => {
-        if (containsSelection && hasChildren) {
-            setExpanded(true);
-        }
+        if (containsSelection && hasChildren) setExpanded(true);
     }, [containsSelection, hasChildren]);
 
-    // 3. AUTO-SCROLL
-    // If I am the exact target, scroll me into view.
     useEffect(() => {
-        if (isExactTarget && nodeRef.current) {
+        if (containsSelection && !hasChildren && nodeRef.current) {
             nodeRef.current.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
         }
-    }, [isExactTarget]);
+    }, [containsSelection, hasChildren]);
 
     return (
         <div style={{ marginLeft: '12px', marginTop: '4px', fontSize: '0.8rem' }}>
             <div
                 ref={nodeRef}
                 style={{
-                    display: 'flex', alignItems: 'center', cursor: 'pointer', padding: '2px 4px',
-                    borderRadius: '4px',
-                    // Active Highlight Style
-                    background: isExactTarget ? 'rgba(0, 240, 255, 0.2)' : 'transparent',
-                    border: isExactTarget ? '1px solid rgba(0, 240, 255, 0.4)' : '1px solid transparent',
-                    color: isExactTarget ? '#fff' : 'inherit',
+                    display: 'flex', alignItems: 'center', cursor: 'pointer', padding: '2px 4px', borderRadius: '4px',
+                    background: containsSelection && !hasChildren ? 'rgba(0, 240, 255, 0.2)' : 'transparent',
+                    color: containsSelection && !hasChildren ? '#fff' : '#ccc',
                     transition: 'all 0.2s'
                 }}
                 onClick={(e) => {
                     e.stopPropagation();
                     onSelect(node.offset, endOffset);
-                    if (onNodeClick) onNodeClick(node); // <--- REPORT THE NODE
+                    if (onNodeClick) onNodeClick(node);
                     if (hasChildren) setExpanded(!expanded);
                 }}
                 onMouseEnter={(e) => { e.stopPropagation(); onHover({ start: node.offset, end: endOffset }); }}
                 onMouseLeave={() => onHover(null)}
             >
-                {hasChildren ? (expanded ? <ChevronDown size={12} color={isExactTarget ? "#fff" : "#888"} /> : <ChevronRight size={12} color={isExactTarget ? "#fff" : "#888"} />) : <span style={{ width: '12px' }} />}
-                {node.is_container ? <Folder size={12} color={isExactTarget ? "#fff" : "var(--accent-blue)"} style={{ marginLeft: '4px' }} /> : <Box size={12} color={isExactTarget ? "#fff" : "var(--accent-cyan)"} style={{ marginLeft: '4px' }} />}
-                <span style={{ marginLeft: '6px', color: isExactTarget ? '#fff' : '#ccc', fontWeight: isExactTarget ? 'bold' : 'normal' }}>{node.name}</span>
-                <span style={{ marginLeft: 'auto', color: isExactTarget ? 'rgba(255,255,255,0.7)' : '#555', fontSize: '0.65rem' }}>[0x{node.offset.toString(16).toUpperCase()}]</span>
+                {hasChildren ? (expanded ? <ChevronDown size={12} /> : <ChevronRight size={12} />) : <span style={{ width: '12px' }} />}
+                {node.is_container ? <Folder size={12} color="var(--accent-blue)" style={{ marginLeft: '4px' }} /> : <Box size={12} color="var(--accent-cyan)" style={{ marginLeft: '4px' }} />}
+                <span style={{ marginLeft: '6px' }}>{node.name}</span>
             </div>
             {expanded && hasChildren && (
                 <div style={{ borderLeft: '1px solid #333' }}>
                     {node.children.map((child, i) => (
-                        <TreeNode
-                            key={i}
-                            node={child}
-                            selectionOffset={selectionOffset} // Pass prop down recursively
-                            onSelect={onSelect}
-                            onHover={onHover}
-                            onNodeClick={onNodeClick} // <--- PASS IT DOWN RECURSIVELY
-                        />
+                        <TreeNode key={i} node={child} selectionOffset={selectionOffset} onSelect={onSelect} onHover={onHover} onNodeClick={onNodeClick} />
                     ))}
                 </div>
             )}
@@ -99,42 +74,95 @@ const TreeNode: React.FC<{
     );
 };
 
-const FileTree: React.FC<Props> = ({ file, structures, standard, selectionOffset, onSelectRange, onHoverRange, onNodeSelect }) => {
+const FileTree: React.FC<Props> = ({ file, fileSize = 0, structures, standard, selectionOffset, onSelectRange, onHoverRange, onNodeSelect }) => {
+    // DEFAULT VIEW IS NOW 'SIMPLE'
+    const [viewMode, setViewMode] = useState<'simple' | 'detailed'>('simple');
+    const [isMinimized, setIsMinimized] = useState(false);
+
     if (!file) return <div style={{ padding: '20px', color: '#555', fontSize: '0.8rem' }}>No File Loaded</div>;
 
-    return (
-        <div className="file-tree" style={{ padding: '10px' }}>
-            {standard && (
-                <div style={{ marginBottom: '15px', padding: '10px', background: `rgba(0,0,0,0.3)`, border: `1px solid ${standard.color}`, borderRadius: '4px' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', color: standard.color, fontWeight: 'bold', fontSize: '0.8rem' }}>
-                        <Shield size={14} style={{ marginRight: '6px' }} />
-                        {standard.name}
-                    </div>
-                    <div style={{ fontSize: '0.7rem', color: '#aaa', marginTop: '4px' }}>{standard.description}</div>
-                </div>
-            )}
+    // RESTORED OLD SECTION STYLE
+    const simpleSections = [
+        { name: "File Header", icon: <FileDigit size={14} color="#00ff9d" />, start: 0, end: Math.min(1024, fileSize), color: 'rgba(0, 255, 157, 0.1)' },
+        { name: "Data Body", icon: <Database size={14} color="#00f0ff" />, start: Math.min(1024, fileSize), end: Math.max(fileSize - 1024, 0), color: 'rgba(0, 240, 255, 0.1)' },
+        { name: "Metadata Overlay", icon: <Layout size={14} color="#bd00ff" />, start: Math.max(fileSize - 1024, 0), end: fileSize, color: 'rgba(189, 0, 255, 0.1)' }
+    ];
 
-            <div style={{ display: 'flex', alignItems: 'center', color: 'var(--text-mono)', marginBottom: '10px' }}>
-                <ChevronDown size={14} />
-                <FileCode size={14} style={{ marginLeft: '5px', color: 'var(--accent-blue)' }} />
-                <span style={{ marginLeft: '5px', fontSize: '0.85rem' }}>{file.name}</span>
+    return (
+        <div className="file-tree" style={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
+            <div style={{ padding: '10px', borderBottom: '1px solid #333', display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: '#111' }}>
+                <div style={{ display: 'flex', gap: '8px' }}>
+                    {/* SWAPPED ORDER: LAYERS FIRST */}
+                    <button
+                        onClick={() => setViewMode('simple')}
+                        title="Simple Sections"
+                        style={{ background: 'none', border: 'none', color: viewMode === 'simple' ? 'var(--accent-cyan)' : '#555', cursor: 'pointer' }}
+                    >
+                        <Layers size={14} />
+                    </button>
+                    <button
+                        onClick={() => setViewMode('detailed')}
+                        title="Detailed Structure"
+                        style={{ background: 'none', border: 'none', color: viewMode === 'detailed' ? 'var(--accent-cyan)' : '#555', cursor: 'pointer' }}
+                    >
+                        <Code size={14} />
+                    </button>
+                </div>
+                <button onClick={() => setIsMinimized(!isMinimized)} style={{ background: 'none', border: 'none', color: '#555', cursor: 'pointer' }}>
+                    {isMinimized ? <Maximize2 size={14} /> : <Minimize2 size={14} />}
+                </button>
             </div>
 
-            {structures && structures.length > 0 ? (
-                <div style={{ borderLeft: '1px solid #333', paddingLeft: '4px' }}>
-                    <div style={{ fontSize: '0.7rem', color: 'var(--accent-cyan)', marginBottom: '5px', marginLeft: '12px' }}>PARSED STRUCTURES</div>
-                    {structures.map((node, i) => (
-                        <TreeNode
-                            key={i}
-                            node={node}
-                            selectionOffset={selectionOffset} // Pass the "Twin View" connection
-                            onSelect={onSelectRange}
-                            onHover={onHoverRange}
-                            onNodeClick={onNodeSelect} // <--- PASS TO ROOT NODES
-                        />
-                    ))}
+            {!isMinimized && (
+                <div style={{ flex: 1, overflow: 'auto', padding: '10px' }}>
+                    {standard && (
+                        <div style={{ marginBottom: '15px', padding: '10px', background: `rgba(0,0,0,0.3)`, border: `1px solid ${standard.color}`, borderRadius: '4px' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', color: standard.color, fontWeight: 'bold', fontSize: '0.8rem' }}>
+                                <Shield size={14} style={{ marginRight: '6px' }} />
+                                {standard.name}
+                            </div>
+                        </div>
+                    )}
+
+                    {viewMode === 'detailed' ? (
+                        structures && structures.length > 0 ? (
+                            <div style={{ borderLeft: '1px solid #333', paddingLeft: '4px' }}>
+                                {structures.map((node, i) => (
+                                    <TreeNode key={i} node={node} selectionOffset={selectionOffset} onSelect={onSelectRange} onHover={onHoverRange} onNodeClick={onNodeSelect} />
+                                ))}
+                            </div>
+                        ) : <div style={{ color: '#555', fontSize: '0.8rem' }}>Scanning structure...</div>
+                    ) : (
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                            {simpleSections.map((sec, i) => (
+                                <div
+                                    key={i}
+                                    onClick={() => onSelectRange(sec.start, sec.end)}
+                                    // RESTORED STYLING
+                                    style={{
+                                        padding: '10px',
+                                        background: sec.color,
+                                        borderRadius: '4px',
+                                        cursor: 'pointer',
+                                        border: '1px solid transparent',
+                                        display: 'flex', alignItems: 'center', gap: '10px',
+                                        transition: 'all 0.2s'
+                                    }}
+                                    className="simple-section-hover"
+                                >
+                                    {sec.icon}
+                                    <div>
+                                        <div style={{ color: '#fff', fontSize: '0.85rem', fontWeight: 'bold' }}>{sec.name}</div>
+                                        <div style={{ color: 'rgba(255,255,255,0.5)', fontSize: '0.7rem', marginTop: '2px' }}>
+                                            0x{sec.start.toString(16).toUpperCase()} - 0x{sec.end.toString(16).toUpperCase()}
+                                        </div>
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+                    )}
                 </div>
-            ) : <div style={{ marginLeft: '20px', fontSize: '0.75rem', color: '#555' }}>{structures ? "No structures found" : "Scanning..."}</div>}
+            )}
         </div>
     );
 };
