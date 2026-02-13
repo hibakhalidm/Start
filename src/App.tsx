@@ -4,7 +4,7 @@ import { useAnalysisEngine } from './hooks/useAnalysisEngine';
 import { HilbertCurve } from './utils/hilbert';
 import { detectStandard, DetectedStandard } from './utils/standards';
 import { generateReport } from './utils/export';
-import { Download, Eye, EyeOff } from 'lucide-react'; // Import Eye icons
+import { Download } from 'lucide-react';
 
 import Radar from './components/Radar';
 import HexView, { HexViewRef } from './components/HexView';
@@ -23,9 +23,11 @@ function App() {
     const [fileData, setFileData] = useState<Uint8Array | null>(null);
     const [fileObj, setFileObj] = useState<File | null>(null);
 
-    // View Options State
+    // --- VIEW OPTIONS STATE ---
     const [showHilbert, setShowHilbert] = useState(true);
     const [showHeatmap, setShowHeatmap] = useState(true);
+    const [showInspector, setShowInspector] = useState(true); // New Toggle
+    const [showPipeline, setShowPipeline] = useState(true);   // New Toggle
 
     const [hoveredOffset, setHoveredOffset] = useState<number | null>(null);
     const [selectionRange, setSelectionRange] = useState<{ start: number, end: number } | null>(null);
@@ -38,7 +40,6 @@ function App() {
     const [hilbert] = useState(() => new HilbertCurve(9));
     const hexViewRef = useRef<HexViewRef>(null);
 
-    // ... (handleFileChange, handleJumpTo, handleScrollUpdate, useEffect, useMemos SAME AS BEFORE) ...
     const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
         if (e.target.files && e.target.files[0]) {
             const file = e.target.files[0];
@@ -82,24 +83,21 @@ function App() {
     return (
         <div className="app-container" style={{ height: '100%', width: '100%', background: 'var(--bg-deep)', display: 'flex', flexDirection: 'column' }}>
             {/* TOOLBAR */}
-            <div className="toolbar" style={{ height: '40px', borderBottom: '1px solid #333', display: 'flex', alignItems: 'center', padding: '0 20px', flexShrink: 0, justifyContent: 'space-between' }}>
+            <div className="toolbar" style={{ height: '40px', borderBottom: '1px solid #333', display: 'flex', alignItems: 'center', padding: '0 20px', flexShrink: 0, justifyContent: 'space-between', background: '#0a0a0a' }}>
                 <div style={{ display: 'flex', alignItems: 'center' }}>
-                    <span className="logo" style={{ color: 'var(--accent-cyan)', fontWeight: 'bold' }}>CIFAD</span>
-                    <span style={{ margin: '0 10px', color: '#555' }}>/</span>
-                    <input type="file" onChange={handleFileChange} style={{ fontSize: '12px', color: '#ccc' }} />
+                    <span className="logo" style={{ color: 'var(--accent-cyan)', fontWeight: 'bold', letterSpacing: '1px' }}>CIFAD</span>
+                    <span style={{ margin: '0 10px', color: '#333' }}>|</span>
+                    <input type="file" onChange={handleFileChange} style={{ fontSize: '12px', color: '#888' }} />
                 </div>
 
-                <div style={{ display: 'flex', gap: '15px' }}>
-                    {/* VIEW OPTIONS */}
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', borderRight: '1px solid #333', paddingRight: '15px' }}>
-                        <label style={{ fontSize: '11px', color: showHilbert ? '#fff' : '#666', display: 'flex', alignItems: 'center', gap: '4px', cursor: 'pointer' }}>
-                            <input type="checkbox" checked={showHilbert} onChange={(e) => setShowHilbert(e.target.checked)} />
-                            Radar
-                        </label>
-                        <label style={{ fontSize: '11px', color: showHeatmap ? '#fff' : '#666', display: 'flex', alignItems: 'center', gap: '4px', cursor: 'pointer' }}>
-                            <input type="checkbox" checked={showHeatmap} onChange={(e) => setShowHeatmap(e.target.checked)} />
-                            Heatmap
-                        </label>
+                <div style={{ display: 'flex', gap: '15px', alignItems: 'center' }}>
+                    {/* VIEW TOGGLES */}
+                    <div style={{ display: 'flex', gap: '2px', background: '#111', padding: '2px', borderRadius: '4px', border: '1px solid #333' }}>
+                        <ToggleButton label="RADAR" active={showHilbert} onClick={() => setShowHilbert(!showHilbert)} />
+                        <ToggleButton label="HEATMAP" active={showHeatmap} onClick={() => setShowHeatmap(!showHeatmap)} />
+                        <span style={{ width: '1px', background: '#333', margin: '0 4px' }} />
+                        <ToggleButton label="DETAILS" active={showInspector} onClick={() => setShowInspector(!showInspector)} />
+                        <ToggleButton label="PIPELINE" active={showPipeline} onClick={() => setShowPipeline(!showPipeline)} />
                     </div>
 
                     <button
@@ -113,14 +111,14 @@ function App() {
                             display: 'flex', alignItems: 'center', gap: '6px'
                         }}
                     >
-                        <Download size={14} /> EXPORT JSON
+                        <Download size={14} /> EXPORT
                     </button>
                 </div>
             </div>
 
             <div style={{ flex: 1, minHeight: 0, position: 'relative' }}>
                 <PanelGroup direction="horizontal">
-                    {/* LEFT PANEL */}
+                    {/* LEFT: TREE */}
                     <Panel defaultSize={20} minSize={10} className="bg-panel cyber-border-right">
                         <FileTree
                             file={fileObj}
@@ -135,15 +133,14 @@ function App() {
                     </Panel>
                     <PanelResizeHandle className="resize-handle" />
 
-                    {/* CENTER PANEL */}
+                    {/* CENTER */}
                     <Panel minSize={30}>
                         <PanelGroup direction="vertical">
-                            {/* TOP: RADAR (TOGGLEABLE) */}
                             {showHilbert && (
                                 <>
                                     <Panel defaultSize={40} minSize={20}>
-                                        <div style={{ height: '100%', position: 'relative', display: 'flex', flexDirection: 'column' }}>
-                                            <div className="panel-header" style={{ position: 'absolute', top: 0, left: 0, zIndex: 10 }}>GLOBAL SIGNAL (ENTROPY & HILBERT)</div>
+                                        <div style={{ height: '100%', position: 'relative' }}>
+                                            <div className="panel-header" style={{ position: 'absolute', top: 0, left: 0, zIndex: 10 }}>GLOBAL SIGNAL</div>
                                             {isReady && result ? (
                                                 <Radar
                                                     matrix={result.hilbert_matrix}
@@ -160,16 +157,11 @@ function App() {
                                 </>
                             )}
 
-                            {/* MIDDLE: GLOBAL RHYTHM */}
                             <Panel defaultSize={15} minSize={10} collapsible={true}>
-                                <AutocorrelationGraph
-                                    fileData={fileData}
-                                    onLagSelect={(off) => handleJumpTo(off)}
-                                />
+                                <AutocorrelationGraph fileData={fileData} onLagSelect={(off) => handleJumpTo(off)} />
                             </Panel>
                             <PanelResizeHandle className="resize-handle-horizontal" />
 
-                            {/* BOTTOM: MICRO VIEW (Matrix) */}
                             <Panel minSize={20}>
                                 <div style={{ display: 'flex', height: '100%' }}>
                                     <div style={{ flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
@@ -188,7 +180,6 @@ function App() {
                                             )}
                                         </div>
                                     </div>
-                                    {/* HEATMAP SCROLLBAR (TOGGLEABLE) */}
                                     {showHeatmap && (
                                         <div style={{ width: '24px', borderLeft: '1px solid #333' }}>
                                             {result && (
@@ -204,36 +195,52 @@ function App() {
                             </Panel>
                         </PanelGroup>
                     </Panel>
-                    <PanelResizeHandle className="resize-handle" />
 
-                    {/* RIGHT PANEL: INSPECTOR */}
-                    <Panel defaultSize={25} minSize={20} className="bg-panel cyber-border-left">
-                        <div className="panel-header">DETAILS & TOOLS</div>
-                        <div style={{ padding: '15px', display: 'flex', flexDirection: 'column', height: 'calc(100% - 30px)', gap: '20px', overflowY: 'auto' }}>
+                    {/* RIGHT: DETAILS (Only show if at least one view enabled) */}
+                    {(showInspector || showPipeline) && (
+                        <>
+                            <PanelResizeHandle className="resize-handle" />
+                            <Panel defaultSize={25} minSize={20} className="bg-panel cyber-border-left">
+                                <div className="panel-header">DETAILS</div>
+                                <div style={{ padding: '15px', display: 'flex', flexDirection: 'column', height: 'calc(100% - 30px)', gap: '15px', overflowY: 'auto' }}>
 
-                            {/* 1. STRUCTURAL INSPECTOR (Always at top if node selected) */}
-                            {selectedNode && (
-                                <section style={{ borderBottom: '1px solid #333', paddingBottom: '20px' }}>
-                                    <StructureInspector
-                                        node={selectedNode}
-                                        fileData={fileData}
-                                        onFocus={(s, e) => handleJumpTo(s, e - s)}
-                                    />
-                                </section>
-                            )}
+                                    {/* INSPECTOR VIEW */}
+                                    {showInspector && selectedNode && (
+                                        <div style={{ flexShrink: 0 }}>
+                                            <StructureInspector node={selectedNode} fileData={fileData} onFocus={(s, e) => handleJumpTo(s, e - s)} />
+                                        </div>
+                                    )}
 
-                            {/* 2. TRANSFORMATION PIPELINE (Always available) */}
-                            <section style={{ flex: 1 }}>
-                                <div style={{ fontSize: '10px', color: 'var(--accent-cyan)', marginBottom: '10px' }}>DATA PIPELINE</div>
-                                <TransformationPipeline selectedBytes={selectedBytes} />
-                            </section>
-
-                        </div>
-                    </Panel>
+                                    {/* PIPELINE VIEW */}
+                                    {showPipeline && (
+                                        <div style={{ flex: 1, borderTop: showInspector ? '1px solid #333' : 'none', paddingTop: showInspector ? '15px' : '0' }}>
+                                            <div style={{ fontSize: '10px', color: '#666', marginBottom: '10px' }}>TRANSFORMATION PIPELINE</div>
+                                            <TransformationPipeline selectedBytes={selectedBytes} />
+                                        </div>
+                                    )}
+                                </div>
+                            </Panel>
+                        </>
+                    )}
                 </PanelGroup>
             </div>
         </div>
     );
 }
+
+// Helper for the Toggle Buttons
+const ToggleButton = ({ label, active, onClick }: { label: string, active: boolean, onClick: () => void }) => (
+    <button
+        onClick={onClick}
+        style={{
+            background: active ? 'var(--accent-cyan)' : 'transparent',
+            color: active ? '#000' : '#666',
+            border: 'none', borderRadius: '2px', padding: '4px 8px', fontSize: '10px', fontWeight: 'bold', cursor: 'pointer',
+            transition: 'all 0.2s'
+        }}
+    >
+        {label}
+    </button>
+);
 
 export default App;

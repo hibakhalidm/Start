@@ -1,12 +1,12 @@
 import React, { useState } from 'react';
-import { Info, Ruler, Hash, Copy, Eye, Check } from 'lucide-react';
+import { Info, Ruler, Hash, Copy, Eye, Check, ArrowRight } from 'lucide-react';
 import { TlvNode } from '../types/analysis';
 import { getTagInfo } from '../utils/tag_dictionary';
 
 interface Props {
     node: TlvNode | null;
     fileData: Uint8Array | null;
-    onFocus?: (start: number, end: number) => void; // Capability to jump to location
+    onFocus?: (start: number, end: number) => void;
 }
 
 const StructureInspector: React.FC<Props> = ({ node, fileData, onFocus }) => {
@@ -16,7 +16,7 @@ const StructureInspector: React.FC<Props> = ({ node, fileData, onFocus }) => {
         return (
             <div style={{ padding: '40px 20px', color: '#555', textAlign: 'center', fontStyle: 'italic', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '10px' }}>
                 <Info size={32} style={{ opacity: 0.3 }} />
-                <div>Select a component in the Tree or Hex View to inspect details.</div>
+                <div>Select a component to inspect.</div>
             </div>
         );
     }
@@ -26,34 +26,29 @@ const StructureInspector: React.FC<Props> = ({ node, fileData, onFocus }) => {
     // Calculate Value Range
     const valueStart = node.offset + node.tag_length + node.value_length_len;
     const valueEnd = valueStart + node.value_length;
-    // Safety
-    const safeEnd = Math.min(valueEnd, fileData.length);
-    const valueBytes = fileData.slice(valueStart, safeEnd);
+    const valueBytes = fileData.slice(valueStart, valueEnd);
 
-    // Smart Decoding
-    let valuePreview = "Binary Data";
+    // 1. RAW INPUT PREVIEW (Limit to 32 bytes for UI)
+    const rawHex = Array.from(valueBytes.slice(0, 32))
+        .map(b => b.toString(16).padStart(2, '0').toUpperCase())
+        .join(' ') + (valueBytes.length > 32 ? ' ...' : '');
+
+    // 2. DECODED OUTPUT
+    let decodedValue = "Binary Data";
     let isText = false;
 
     if (node.tag === 0x02 && valueBytes.length <= 8) { // Integer
-        if (valueBytes.length > 0) {
-            const hex = Array.from(valueBytes).map(b => b.toString(16).padStart(2, '0')).join('');
-            const intVal = parseInt(hex, 16);
-            valuePreview = intVal.toLocaleString();
-        } else {
-            valuePreview = "0";
-        }
-    } else if ([0x04, 0x13, 0x0C, 0x17].includes(node.tag)) { // Strings/Time
+        const hex = Array.from(valueBytes).map(b => b.toString(16).padStart(2, '0')).join('');
+        const intVal = parseInt(hex, 16);
+        decodedValue = intVal.toLocaleString();
+    } else if ([0x04, 0x13, 0x0C, 0x17].includes(node.tag)) { // Strings
         const text = new TextDecoder().decode(valueBytes);
-        // Clean non-printable chars
         if (/^[\x20-\x7E]*$/.test(text)) {
-            valuePreview = text;
+            decodedValue = `"${text}"`; // Add quotes to emphasize it's a string
             isText = true;
-        } else {
-            // Show hex preview if binary
-            valuePreview = Array.from(valueBytes.slice(0, 32)).map(b => b.toString(16).padStart(2, '0')).join(' ') + (valueBytes.length > 32 ? '...' : '');
         }
     } else if (node.is_container) {
-        valuePreview = `${node.children ? node.children.length : 0} nested items`;
+        decodedValue = `[Container] ${node.children.length} items`;
     }
 
     const handleCopy = (text: string, type: string) => {
@@ -67,7 +62,7 @@ const StructureInspector: React.FC<Props> = ({ node, fileData, onFocus }) => {
 
             {/* HEADER */}
             <div style={{ borderBottom: '1px solid #333', paddingBottom: '12px' }}>
-                <div style={{ fontSize: '10px', color: 'var(--accent-cyan)', textTransform: 'uppercase', letterSpacing: '1px', marginBottom: '4px' }}>COMPONENT TYPE</div>
+                <div style={{ fontSize: '10px', color: 'var(--accent-cyan)', textTransform: 'uppercase', marginBottom: '4px' }}>COMPONENT TYPE</div>
                 <div style={{ fontSize: '1.1rem', fontWeight: 'bold', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                         {info.name}
@@ -76,54 +71,60 @@ const StructureInspector: React.FC<Props> = ({ node, fileData, onFocus }) => {
                         </span>
                     </div>
                     {onFocus && (
-                        <button
-                            onClick={() => onFocus(node.offset, valueEnd)}
-                            title="Focus in Matrix"
-                            style={{ background: 'none', border: 'none', color: 'var(--accent-cyan)', cursor: 'pointer' }}
-                        >
+                        <button onClick={() => onFocus(node.offset, valueEnd)} title="Focus in Matrix" style={{ background: 'none', border: 'none', color: 'var(--accent-cyan)', cursor: 'pointer' }}>
                             <Eye size={16} />
                         </button>
                     )}
                 </div>
+                <div style={{ fontSize: '0.8rem', color: '#888', marginTop: '4px', fontStyle: 'italic' }}>{info.description}</div>
             </div>
 
-            {/* EXPLANATION */}
-            <div style={{ background: 'rgba(0, 240, 255, 0.05)', borderLeft: '3px solid var(--accent-cyan)', padding: '12px', fontSize: '0.85rem', color: '#ccc', lineHeight: '1.4' }}>
-                {info.description}
+            {/* TRANSFORMATION DISPLAY */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+
+                {/* INPUT BOX */}
+                <div>
+                    <div style={{ fontSize: '10px', color: '#666', marginBottom: '4px' }}>RAW BYTES (INPUT)</div>
+                    <div style={{
+                        background: '#151515', border: '1px solid #333', borderRadius: '4px', padding: '8px',
+                        fontSize: '0.8rem', color: '#aaa', wordBreak: 'break-all'
+                    }}>
+                        {rawHex}
+                    </div>
+                </div>
+
+                {/* ARROW */}
+                <div style={{ display: 'flex', justifyContent: 'center', color: '#444' }}>
+                    <ArrowRight size={14} />
+                </div>
+
+                {/* OUTPUT BOX */}
+                <div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '4px' }}>
+                        <span style={{ fontSize: '10px', color: 'var(--accent-cyan)' }}>DECODED (OUTPUT)</span>
+                        <button onClick={() => handleCopy(decodedValue, 'dec')} style={{ background: 'none', border: 'none', color: copied === 'dec' ? '#0f0' : '#555', cursor: 'pointer', fontSize: '10px' }}>
+                            {copied === 'dec' ? 'COPIED' : 'COPY'}
+                        </button>
+                    </div>
+                    <div style={{
+                        background: '#111', border: '1px solid var(--accent-cyan)', borderRadius: '4px', padding: '10px',
+                        fontSize: '0.9rem', color: isText ? '#fff' : 'var(--accent-green)', fontWeight: 'bold',
+                        wordBreak: 'break-all'
+                    }}>
+                        {decodedValue}
+                    </div>
+                </div>
             </div>
 
-            {/* METRICS GRID */}
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
-                <div className="metric-box" style={{ background: '#1a1a1a', padding: '10px', borderRadius: '4px' }}>
-                    <div style={{ fontSize: '0.7rem', color: '#666', display: 'flex', alignItems: 'center', gap: '4px', marginBottom: '4px' }}><Hash size={10} /> OFFSET</div>
-                    <div style={{ fontSize: '0.9rem', color: '#fff' }}>0x{node.offset.toString(16).toUpperCase()}</div>
+            {/* METRICS */}
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px', marginTop: 'auto' }}>
+                <div style={{ background: '#1a1a1a', padding: '8px', borderRadius: '4px' }}>
+                    <div style={{ fontSize: '0.65rem', color: '#666' }}>OFFSET</div>
+                    <div style={{ fontSize: '0.8rem' }}>0x{node.offset.toString(16).toUpperCase()}</div>
                 </div>
-                <div className="metric-box" style={{ background: '#1a1a1a', padding: '10px', borderRadius: '4px' }}>
-                    <div style={{ fontSize: '0.7rem', color: '#666', display: 'flex', alignItems: 'center', gap: '4px', marginBottom: '4px' }}><Ruler size={10} /> LENGTH</div>
-                    <div style={{ fontSize: '0.9rem', color: '#fff' }}>{node.value_length} Bytes</div>
-                </div>
-            </div>
-
-            {/* CONTENT VIEWER */}
-            <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minHeight: 0 }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
-                    <span style={{ fontSize: '10px', color: '#777', textTransform: 'uppercase' }}>DECODED VALUE</span>
-                    <button
-                        onClick={() => handleCopy(valuePreview, 'val')}
-                        style={{ background: 'none', border: 'none', color: copied === 'val' ? '#0f0' : '#555', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '4px', fontSize: '10px' }}
-                    >
-                        {copied === 'val' ? <Check size={12} /> : <Copy size={12} />} {copied === 'val' ? 'COPIED' : 'COPY'}
-                    </button>
-                </div>
-
-                <div style={{
-                    background: '#111', border: '1px solid #333', borderRadius: '4px', padding: '12px',
-                    fontSize: '0.85rem', color: node.is_container ? '#666' : (isText ? '#fff' : 'var(--accent-green)'),
-                    fontFamily: isText ? 'sans-serif' : 'var(--font-mono)',
-                    wordBreak: 'break-all', overflow: 'auto', flex: 1,
-                    lineHeight: '1.5'
-                }}>
-                    {valuePreview}
+                <div style={{ background: '#1a1a1a', padding: '8px', borderRadius: '4px' }}>
+                    <div style={{ fontSize: '0.65rem', color: '#666' }}>LENGTH</div>
+                    <div style={{ fontSize: '0.8rem' }}>{node.value_length} B</div>
                 </div>
             </div>
         </div>
