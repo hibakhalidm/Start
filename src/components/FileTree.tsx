@@ -11,14 +11,16 @@ interface Props {
     selectionOffset?: number | null; // <--- NEW PROP
     onSelectRange: (start: number, end: number) => void;
     onHoverRange: (range: { start: number, end: number } | null) => void;
+    onNodeSelect?: (node: TlvNode) => void; // <--- NEW PROP
 }
 
 const TreeNode: React.FC<{
     node: TlvNode,
     selectionOffset?: number | null,
     onSelect: (s: number, e: number) => void,
-    onHover: (r: { start: number, end: number } | null) => void
-}> = ({ node, selectionOffset, onSelect, onHover }) => {
+    onHover: (r: { start: number, end: number } | null) => void,
+    onNodeClick?: (n: TlvNode) => void
+}> = ({ node, selectionOffset, onSelect, onHover, onNodeClick }) => {
     const [expanded, setExpanded] = useState(false);
     const nodeRef = useRef<HTMLDivElement>(null);
 
@@ -68,6 +70,7 @@ const TreeNode: React.FC<{
                 onClick={(e) => {
                     e.stopPropagation();
                     onSelect(node.offset, endOffset);
+                    if (onNodeClick) onNodeClick(node); // <--- REPORT THE NODE
                     if (hasChildren) setExpanded(!expanded);
                 }}
                 onMouseEnter={(e) => { e.stopPropagation(); onHover({ start: node.offset, end: endOffset }); }}
@@ -87,6 +90,7 @@ const TreeNode: React.FC<{
                             selectionOffset={selectionOffset} // Pass prop down recursively
                             onSelect={onSelect}
                             onHover={onHover}
+                            onNodeClick={onNodeClick} // <--- PASS IT DOWN RECURSIVELY
                         />
                     ))}
                 </div>
@@ -95,7 +99,7 @@ const TreeNode: React.FC<{
     );
 };
 
-const FileTree: React.FC<Props> = ({ file, structures, standard, selectionOffset, onSelectRange, onHoverRange }) => {
+const FileTree: React.FC<Props> = ({ file, structures, standard, selectionOffset, onSelectRange, onHoverRange, onNodeSelect }) => {
     if (!file) return <div style={{ padding: '20px', color: '#555', fontSize: '0.8rem' }}>No File Loaded</div>;
 
     return (
@@ -126,6 +130,7 @@ const FileTree: React.FC<Props> = ({ file, structures, standard, selectionOffset
                             selectionOffset={selectionOffset} // Pass the "Twin View" connection
                             onSelect={onSelectRange}
                             onHover={onHoverRange}
+                            onNodeClick={onNodeSelect} // <--- PASS TO ROOT NODES
                         />
                     ))}
                 </div>

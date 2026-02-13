@@ -14,6 +14,9 @@ import FileTree from './components/FileTree';
 import TransformationPipeline from './components/TransformationPipeline';
 import './App.css';
 
+import StructureInspector from './components/StructureInspector';
+import { TlvNode } from './types/analysis';
+
 const calculateLocalAutocorrelation = (data: Uint8Array): number[] => {
     if (!data || data.length < 16) return [];
     const maxLag = Math.min(64, Math.floor(data.length / 2));
@@ -39,6 +42,7 @@ function App() {
     const [selectionRange, setSelectionRange] = useState<{ start: number, end: number } | null>(null);
     const [hoverRange, setHoverRange] = useState<{ start: number, end: number } | null>(null); // <--- NEW STATE
     const [standard, setStandard] = useState<DetectedStandard | null>(null);
+    const [selectedNode, setSelectedNode] = useState<TlvNode | null>(null); // <--- NEW STATE
 
     const [hexStride, setHexStride] = useState(16);
     const [hilbert] = useState(() => new HilbertCurve(9));
@@ -50,6 +54,7 @@ function App() {
             setFileObj(file);
             setStandard(null);
             setSelectionRange(null);
+            setSelectedNode(null); // <--- RESET SELECTION
             analyzeFile(file);
             const buffer = await file.arrayBuffer();
             setFileData(new Uint8Array(buffer));
@@ -123,6 +128,7 @@ function App() {
 
                                     onSelectRange={handleRangeSelect}
                                     onHoverRange={setHoverRange} // <--- WIRE IT UP
+                                    onNodeSelect={(node) => setSelectedNode(node)} // <--- CONNECT NODE SELECTION
                                 />
                             </div>
                         </div>
@@ -174,10 +180,16 @@ function App() {
                     <Panel defaultSize={30} minSize={20} className="bg-panel cyber-border-left">
                         <div className="panel-header">INSPECTOR</div>
                         <div style={{ padding: '20px', display: 'flex', flexDirection: 'column', height: 'calc(100% - 30px)' }}>
-                            <AutocorrelationGraph data={liveGraphData} onLagSelect={setHexStride} />
-                            <div style={{ flex: 1, marginTop: '20px', overflow: 'hidden' }}>
-                                <TransformationPipeline selectedBytes={selectedBytes} />
-                            </div>
+                            {selectedNode ? (
+                                <StructureInspector node={selectedNode} fileData={fileData} />
+                            ) : (
+                                <>
+                                    <AutocorrelationGraph data={liveGraphData} onLagSelect={setHexStride} />
+                                    <div style={{ flex: 1, marginTop: '20px', overflow: 'hidden' }}>
+                                        <TransformationPipeline selectedBytes={selectedBytes} />
+                                    </div>
+                                </>
+                            )}
                         </div>
                     </Panel>
                 </PanelGroup>
