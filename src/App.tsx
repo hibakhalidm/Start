@@ -44,6 +44,14 @@ function App() {
     const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
         if (e.target.files && e.target.files[0]) {
             const file = e.target.files[0];
+
+            // FORENSIC MEMORY FIREWALL
+            const MAX_FILE_SIZE = 256 * 1024 * 1024; // 256 MB Limit for Browser Sandbox
+            if (file.size > MAX_FILE_SIZE) {
+                alert(`FORENSIC WARNING: File size (${(file.size / 1024 / 1024).toFixed(1)}MB) exceeds safe memory boundaries for live browser analysis.`);
+                return;
+            }
+
             await processFile(file);
         }
     };
