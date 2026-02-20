@@ -1,79 +1,93 @@
 import React, { useState, useMemo } from 'react';
+import { Settings2, FileWarning } from 'lucide-react';
 
 interface Props {
     selectedBytes: Uint8Array | null;
 }
 
 const TransformationPipeline: React.FC<Props> = ({ selectedBytes }) => {
-    const [operations, setOperations] = useState<string[]>([]);
+    const [operation, setOperation] = useState<'hex' | 'xor' | 'swap16'>('hex');
+    const [xorKey, setXorKey] = useState<string>('AA');
 
-    // 1. SIMULATE PIPELINE (MVP: Just XOR for now)
-    const processedData = useMemo(() => {
-        if (!selectedBytes) return null;
-        if (operations.length === 0) return selectedBytes;
+    // PIPELINE ENGINE
+    const resultText = useMemo(() => {
+        if (!selectedBytes || selectedBytes.length === 0) return "No data selected.";
 
-        // Apply operations (Mock logic for v3.0)
-        return selectedBytes.map(b => b ^ 0xFF); // Example: Simple XOR
-    }, [selectedBytes, operations]);
+        try {
+            if (operation === 'hex') {
+                return Array.from(selectedBytes).map(b => b.toString(16).padStart(2, '0').toUpperCase()).join(' ');
+            }
 
-    // Helper to render preview
-    const renderPreview = (data: Uint8Array | null) => {
-        if (!data) return <span style={{ color: '#555' }}>No Selection</span>;
-        const preview = Array.from(data.slice(0, 32)); // Show first 32 bytes
-        const hex = preview.map(b => b.toString(16).padStart(2, '0')).join(' ');
-        return (
-            <div>
-                <div style={{ fontFamily: 'monospace', color: 'var(--accent-blue)', fontSize: '0.8rem' }}>{hex} {data.length > 32 ? '...' : ''}</div>
-                <div style={{ fontFamily: 'monospace', color: '#fff', fontSize: '0.8rem', opacity: 0.7 }}>
-                    {preview.map(b => (b > 31 && b < 127 ? String.fromCharCode(b) : '.')).join('')}
-                </div>
-            </div>
-        );
-    };
+            if (operation === 'xor') {
+                const key = parseInt(xorKey, 16);
+                if (isNaN(key)) return "Invalid XOR Key";
+                return Array.from(selectedBytes)
+                    .map(b => (b ^ key).toString(16).padStart(2, '0').toUpperCase())
+                    .join(' ');
+            }
+
+            if (operation === 'swap16') {
+                const swapped = new Uint8Array(selectedBytes.length);
+                for (let i = 0; i < selectedBytes.length; i += 2) {
+                    if (i + 1 < selectedBytes.length) {
+                        swapped[i] = selectedBytes[i + 1];
+                        swapped[i + 1] = selectedBytes[i];
+                    } else {
+                        swapped[i] = selectedBytes[i]; // Handle odd length
+                    }
+                }
+                return Array.from(swapped).map(b => b.toString(16).padStart(2, '0').toUpperCase()).join(' ');
+            }
+        } catch (e) {
+            return "Transformation Error";
+        }
+        return "";
+    }, [selectedBytes, operation, xorKey]);
+
+    if (!selectedBytes) {
+        return <div style={{ color: '#555', fontSize: '0.8rem', fontStyle: 'italic' }}>Select bytes in the matrix to apply transformations.</div>;
+    }
 
     return (
-        <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
-            {/* INPUT PREVIEW */}
-            <div style={{ padding: '15px', borderBottom: '1px solid #333', background: 'rgba(0,0,0,0.2)' }}>
-                <div style={{ fontSize: '0.7rem', color: '#888', marginBottom: '5px', textTransform: 'uppercase' }}>Pipeline Input</div>
-                {renderPreview(selectedBytes)}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', height: '100%' }}>
+
+            {/* CONTROLS (THE "EDITOR") */}
+            <div style={{ display: 'flex', gap: '10px', alignItems: 'center', background: '#111', padding: '8px', borderRadius: '4px', border: '1px solid #333' }}>
+                <Settings2 size={14} color="var(--accent-cyan)" />
+                <select
+                    value={operation}
+                    onChange={(e) => setOperation(e.target.value as any)}
+                    style={{ background: '#000', color: '#fff', border: '1px solid #444', padding: '4px', fontSize: '0.8rem', borderRadius: '2px', outline: 'none' }}
+                >
+                    <option value="hex">Raw Hex (No Op)</option>
+                    <option value="xor">XOR Decrypt</option>
+                    <option value="swap16">Endian Swap (16-bit)</option>
+                </select>
+
+                {operation === 'xor' && (
+                    <input
+                        type="text"
+                        value={xorKey}
+                        onChange={(e) => setXorKey(e.target.value.replace(/[^0-9A-Fa-f]/g, '').slice(0, 2))}
+                        placeholder="Key (Hex)"
+                        style={{ width: '60px', background: '#000', color: 'var(--accent-cyan)', border: '1px solid var(--accent-cyan)', padding: '4px', fontSize: '0.8rem', textAlign: 'center' }}
+                    />
+                )}
             </div>
 
-            {/* OPERATIONS LIST */}
-            <div style={{ flex: 1, padding: '15px', overflowY: 'auto' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '10px' }}>
-                    <span style={{ fontSize: '0.8rem', color: 'var(--accent-cyan)' }}>OPERATIONS</span>
-                    <button
-                        onClick={() => setOperations([...operations, 'XOR 0xFF'])}
-                        style={{
-                            background: 'var(--accent-cyan)', color: '#000', border: 'none',
-                            fontSize: '0.7rem', padding: '2px 8px', cursor: 'pointer', fontWeight: 'bold'
-                        }}
-                    >
-                        + ADD XOR
-                    </button>
+            {/* ENCRYPTION WARNING */}
+            {selectedBytes.length > 16 && (
+                <div style={{ fontSize: '0.7rem', color: '#888', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                    <FileWarning size={12} /> Apply transforms to test potential decryption.
                 </div>
+            )}
 
-                {operations.map((op, i) => (
-                    <div key={i} style={{
-                        background: '#1a1a20', padding: '8px', marginBottom: '5px',
-                        borderLeft: '2px solid var(--accent-cyan)', fontSize: '0.8rem'
-                    }}>
-                        {op}
-                        <button
-                            onClick={() => setOperations(operations.filter((_, idx) => idx !== i))}
-                            style={{ float: 'right', background: 'none', border: 'none', color: '#555', cursor: 'pointer' }}
-                        >
-                            ×
-                        </button>
-                    </div>
-                ))}
-            </div>
-
-            {/* OUTPUT PREVIEW */}
-            <div style={{ padding: '15px', borderTop: '1px solid #333', background: 'rgba(0, 240, 255, 0.05)' }}>
-                <div style={{ fontSize: '0.7rem', color: 'var(--accent-cyan)', marginBottom: '5px', textTransform: 'uppercase' }}>Result</div>
-                {renderPreview(processedData)}
+            {/* RESULT */}
+            <div style={{
+                flex: 1, overflow: 'auto', background: '#080808', border: '1px solid #222', borderRadius: '4px',
+                padding: '10px', fontFamily: 'monospace', fontSize: '0.85rem', color: '#00ff9d', wordBreak: 'break-all', lineHeight: '1.5'
+            }}>
+                {resultText}
             </div>
         </div>
     );

@@ -78,10 +78,9 @@ function App() {
     };
 
     useEffect(() => {
-        if (result?.parsed_structures) {
-            setStandard(detectStandard(result.parsed_structures));
-        }
-    }, [result]);
+        // Pass BOTH parsed structures AND raw bytes to detect signatures (PCAP, CR)
+        setStandard(detectStandard(result?.parsed_structures, fileData));
+    }, [result, fileData]);
 
     const selectedBytes = useMemo(() => {
         if (!fileData || !selectionRange) return null;
