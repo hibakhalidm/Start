@@ -64,7 +64,16 @@ function App() {
         e.preventDefault();
         setIsDragging(false);
         if (e.dataTransfer.files && e.dataTransfer.files[0]) {
-            await processFile(e.dataTransfer.files[0]);
+            const file = e.dataTransfer.files[0];
+
+            // FORENSIC MEMORY FIREWALL
+            const MAX_FILE_SIZE = 256 * 1024 * 1024; // 256 MB Limit for Browser Sandbox
+            if (file.size > MAX_FILE_SIZE) {
+                alert(`FORENSIC WARNING: File size (${(file.size / 1024 / 1024).toFixed(1)}MB) exceeds safe memory boundaries for live browser analysis. Please carve or split the evidence file to < 256MB before ingestion to prevent memory corruption.`);
+                return;
+            }
+
+            await processFile(file);
         }
     };
 
