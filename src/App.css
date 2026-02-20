@@ -1,9 +1,9 @@
 :root {
   --bg-deep: #050505;
-  --bg-panel: #0a0a0a;
+  --bg-panel: rgba(10, 10, 12, 0.8);
   --accent-cyan: #00f0ff;
   --accent-blue: #0070f3;
-  --border-dim: #222;
+  --border-subtle: rgba(255, 255, 255, 0.05);
   --text-muted: #666;
 }
 
@@ -11,42 +11,53 @@ body {
   margin: 0;
   background-color: var(--bg-deep);
   color: #eee;
-  font-family: 'Inter', system-ui, sans-serif;
+  /* Use a true monospaced/tech stack */
+  font-family: 'JetBrains Mono', 'SF Mono', 'Courier New', monospace;
   overflow: hidden;
-  /* Prevent body scroll */
+  /* Subtle terminal scanline texture */
+  background-image: linear-gradient(rgba(255, 255, 255, 0.015) 1px, transparent 1px);
+  background-size: 100% 4px;
 }
 
-/* 1. CUSTOM SCROLLBARS (Premium Feel) */
+/* SLIM, PROFESSIONAL SCROLLBARS */
 ::-webkit-scrollbar {
-  width: 8px;
-  height: 8px;
+  width: 5px;
+  height: 5px;
 }
 
 ::-webkit-scrollbar-track {
-  background: #000;
+  background: transparent;
 }
 
 ::-webkit-scrollbar-thumb {
-  background: #333;
-  border-radius: 4px;
+  background: #222;
+  border-radius: 2px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
   background: var(--accent-cyan);
 }
 
-/* 2. UTILITIES */
+/* FLAT PANEL HEADERS (No boxes) */
 .panel-header {
-  font-size: 10px;
-  font-weight: bold;
-  letter-spacing: 1px;
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 2px;
   color: var(--text-muted);
   padding: 8px 12px;
-  background: rgba(0, 0, 0, 0.5);
-  border-bottom: 1px solid var(--border-dim);
-  backdrop-filter: blur(5px);
-  z-index: 10;
+  background: transparent;
+  border-bottom: 1px solid var(--border-subtle);
   text-transform: uppercase;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+/* REMOVE FOCUS RINGS */
+button:focus,
+input:focus,
+select:focus {
+  outline: none;
 }
 
 /* 3. DROP ZONE ANIMATION */
