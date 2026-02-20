@@ -130,7 +130,7 @@ function App() {
 
                 <div style={{ display: 'flex', gap: '15px', alignItems: 'center' }}>
                     {/* VIEW TOGGLES */}
-                    <div style={{ display: 'flex', gap: '2px', background: '#111', padding: '2px', borderRadius: '4px', border: '1px solid #333' }}>
+                    <div className={!fileData ? "disabled-toolbar" : ""} style={{ display: 'flex', gap: '2px', background: '#111', padding: '2px', borderRadius: '4px', border: '1px solid #333' }}>
                         <ToggleButton label="RADAR" active={showHilbert} onClick={() => setShowHilbert(!showHilbert)} />
                         <ToggleButton label="HEATMAP" active={showHeatmap} onClick={() => setShowHeatmap(!showHeatmap)} />
                         <span style={{ width: '1px', background: '#333', margin: '0 4px' }} />
@@ -158,11 +158,11 @@ function App() {
                 {!fileData ? (
                     // 1. PREMIUM EMPTY STATE
                     <div style={{ height: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', color: '#444' }}>
-                        <div style={{ width: '100px', height: '100px', border: '2px dashed #333', borderRadius: '20px', display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: '20px' }}>
-                            <Download size={40} />
+                        <div style={{ width: '100px', height: '100px', border: '2px dashed #333', borderRadius: '20px', display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: '20px', animation: 'pulse-border 2s infinite' }}>
+                            <Download size={40} color="#666" />
                         </div>
-                        <h2 style={{ color: '#eee', marginBottom: '8px' }}>INITIALIZE ANALYSIS</h2>
-                        <p style={{ fontSize: '0.9rem' }}>Drag & Drop Signal File or Select from Toolbar</p>
+                        <h2 style={{ color: '#eee', marginBottom: '8px', letterSpacing: '1px' }}>DROP EVIDENCE FILE TO BEGIN</h2>
+                        <p style={{ fontSize: '0.9rem', color: '#666' }}>Supports .pcap, .cr, and Raw Binaries</p>
                     </div>
                 ) : (
                     <PanelGroup direction="horizontal">
@@ -198,7 +198,7 @@ function App() {
                                                         hilbert={hilbert}
                                                         onJump={(off) => handleJumpTo(off)}
                                                     />
-                                                ) : <div style={{ height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#555' }}>NO SIGNAL</div>}
+                                                ) : <div style={{ height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#555' }}>AWAITING ANALYSIS...</div>}
                                             </div>
                                         </Panel>
                                         <PanelResizeHandle className="resize-handle-horizontal" />

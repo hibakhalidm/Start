@@ -82,3 +82,9 @@ select:focus {
   animation: pulse-border 2s infinite;
   background: rgba(0, 240, 255, 0.05);
 }
+
+/* DISABLED STATE FOR TOOLBAR */
+.disabled-toolbar {
+  opacity: 0.5;
+  pointer-events: none;
+}

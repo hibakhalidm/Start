@@ -56,7 +56,7 @@ const TransformationPipeline: React.FC<Props> = ({ selectedBytes }) => {
                 <Settings2 size={14} color="var(--accent-cyan)" />
                 <select
                     value={operation}
-                    onChange={(e) => setOperation(e.target.value as any)}
+                    onChange={(e) => setOperation(e.target.value as 'hex' | 'xor' | 'swap16')}
                     style={{ background: '#000', color: '#fff', border: '1px solid #444', padding: '4px', fontSize: '0.8rem', borderRadius: '2px', outline: 'none' }}
                 >
                     <option value="hex">Raw Hex (No Op)</option>
