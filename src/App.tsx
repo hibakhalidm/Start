@@ -16,7 +16,7 @@ import TransformationPipeline from './components/TransformationPipeline';
 import { TlvNode } from './types/analysis';
 import './App.css';
 
-const calculateLocalAutocorrelation = (data: Uint8Array): number[] => { return []; };
+
 
 function App() {
     const { isReady, analyzeFile, result } = useAnalysisEngine();
@@ -104,10 +104,7 @@ function App() {
         return fileData.slice(selectionRange.start, Math.min(selectionRange.end, selectionRange.start + 65536));
     }, [fileData, selectionRange]);
 
-    const liveGraphData = useMemo(() => {
-        if (selectedBytes && selectedBytes.length > 0) return calculateLocalAutocorrelation(selectedBytes);
-        return result?.autocorrelation_graph || [];
-    }, [selectedBytes, result]);
+
 
     const currentViewPercent = fileData ? currentScrollOffset / fileData.length : 0;
     const isAnalyzing = !result && fileObj; // Simple heuristic for now

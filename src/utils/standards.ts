@@ -43,8 +43,13 @@ export const detectStandard = (nodes: TlvNode[] | undefined, rawBytes: Uint8Arra
 
     // 3. ENCRYPTION / COMPRESSION HEURISTIC (If no structure found, check entropy proxy via bytes)
     if (rawBytes && rawBytes.length > 512) {
-        // Simple heuristic: If first 512 bytes are highly irregular, likely compressed/encrypted
-        return { name: "ENCRYPTED / COMPRESSED", description: "High entropy payload detected. No readable header.", category: "UNKNOWN", confidence: "LOW", color: "#ffaa00" };
+        // Proxy heuristic: count unique bytes in the first 512 bytes. High unique count = high entropy.
+        const firstBlock = rawBytes.slice(0, 512);
+        const uniqueBytes = new Set(firstBlock);
+
+        if (uniqueBytes.size > 200) { // Threshold for "extreme entropy" proxy
+            return { name: "ENCRYPTED / COMPRESSED", description: "High entropy payload detected. No readable header.", category: "UNKNOWN", confidence: "LOW", color: "#ffaa00" };
+        }
     }
 
     return null;
