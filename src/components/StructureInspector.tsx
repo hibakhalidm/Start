@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Terminal, Copy, Check } from 'lucide-react';
+import { Terminal, Copy, Check, Activity } from 'lucide-react'; // Added Activity Icon
 import { TlvNode } from '../types/analysis';
 import { getTagInfo } from '../utils/tag_dictionary';
 
@@ -40,6 +40,33 @@ const StructureInspector: React.FC<Props> = ({ node, fileData, onFocus }) => {
         decodedValue = `[CONTAINER] ${node.children.length} SUB-ITEMS`;
     }
 
+    // --- NEW: INTELLIGENCE ENGINE (ANALYTICAL CONCLUSION) ---
+    let conclusion = "";
+    if (node.is_container) {
+        conclusion = `STRUCTURAL CONTAINER: Encapsulates ${node.children.length} nested records. Used for hierarchical grouping.`;
+    } else if (isText) {
+        conclusion = `PLAINTEXT METADATA: Payload resolves to human-readable ASCII string. High confidence of configuration or identification data.`;
+    } else if (node.tag === 0x02) {
+        conclusion = `QUANTITATIVE METRIC: Interpreted as an Integer flag or counter.`;
+    } else {
+        // Calculate local entropy just for this specific payload block
+        let entropy = 0;
+        const freqs = new Array(256).fill(0);
+        for (let i = 0; i < valueBytes.length; i++) freqs[valueBytes[i]]++;
+        for (let i = 0; i < 256; i++) {
+            if (freqs[i] > 0) {
+                const p = freqs[i] / valueBytes.length;
+                entropy -= p * Math.log2(p);
+            }
+        }
+
+        if (entropy > 7.5 && valueBytes.length > 32) {
+            conclusion = `HIGH ENTROPY (${entropy.toFixed(2)} bits/byte): Data appears mathematically random. High probability of encryption (e.g., AES) or compression. Use pipeline below.`;
+        } else {
+            conclusion = `RAW BINARY (${entropy.toFixed(2)} bits/byte): Unstructured machine data or proprietary encoding.`;
+        }
+    }
+
     const handleCopy = () => { navigator.clipboard.writeText(decodedValue); setCopied('dec'); setTimeout(() => setCopied(null), 2000); };
 
     return (
@@ -61,11 +88,21 @@ const StructureInspector: React.FC<Props> = ({ node, fileData, onFocus }) => {
                 )}
             </div>
 
-            {/* DESCRIPTION (No borders, just muted text) */}
+            {/* DESCRIPTION */}
             <div style={{ fontSize: '0.8rem', color: '#888', lineHeight: '1.4' }}>{info.description}</div>
 
-            {/* UNIFIED TERMINAL READOUT */}
-            <div style={{ flex: 1, background: '#080808', border: '1px solid #1a1a1a', display: 'flex', flexDirection: 'column' }}>
+            {/* NEW: FORENSIC CONCLUSION BOX */}
+            <div style={{ background: 'rgba(0, 255, 157, 0.05)', borderLeft: '2px solid #00ff9d', padding: '10px 12px' }}>
+                <div style={{ fontSize: '0.65rem', color: '#00ff9d', letterSpacing: '1px', marginBottom: '4px', textTransform: 'uppercase', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                    <Activity size={12} /> FORENSIC CONCLUSION
+                </div>
+                <div style={{ fontSize: '0.75rem', color: '#eee', lineHeight: '1.5' }}>
+                    {conclusion}
+                </div>
+            </div>
+
+            {/* TERMINAL READOUT */}
+            <div style={{ flex: 1, background: '#080808', border: '1px solid #1a1a1a', display: 'flex', flexDirection: 'column', minHeight: '100px' }}>
                 <div style={{ padding: '8px 12px', background: '#111', borderBottom: '1px solid #1a1a1a', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                     <span style={{ fontSize: '0.65rem', color: '#555', letterSpacing: '1px' }}>DECODED OUTPUT</span>
                     <button onClick={handleCopy} style={{ background: 'none', border: 'none', cursor: 'pointer', color: copied ? '#00ff9d' : '#555' }}>
