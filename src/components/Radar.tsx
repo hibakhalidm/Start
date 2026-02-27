@@ -1,140 +1,157 @@
-import React, { useState, useRef, useEffect } from 'react';
-import DeckGL from '@deck.gl/react';
-import { BitmapLayer, ScatterplotLayer } from '@deck.gl/layers';
+import React, { useRef, useEffect, useState } from 'react';
 import { HilbertCurve } from '../utils/hilbert';
-import { Box, Activity, ZoomIn, ZoomOut, Maximize } from 'lucide-react';
+import { ZoomIn, ZoomOut, Maximize } from 'lucide-react';
 
 interface RadarProps {
     matrix: Uint8Array;
-    entropyMap?: number[]; // <-- Added for Linear view
+    entropyMap: number[];
     highlightOffset: number | null;
     selectionRange: { start: number, end: number } | null;
     hilbert: HilbertCurve;
     onJump: (offset: number) => void;
 }
 
-interface LinearViewProps {
-    entropyMap: number[];
-    onJump: (offset: number) => void;
-}
-
-const LinearView: React.FC<LinearViewProps> = ({ entropyMap, onJump }) => {
+const Radar: React.FC<RadarProps> = ({ matrix, highlightOffset, selectionRange, hilbert, onJump }) => {
     const canvasRef = useRef<HTMLCanvasElement>(null);
+    const containerRef = useRef<HTMLDivElement>(null);
+    const [hoverPos, setHoverPos] = useState<{ x: number, y: number } | null>(null);
+    const [hoverOffset, setHoverOffset] = useState<number | null>(null);
 
+    // Zoom Multiplier (1 = 100%, 2 = 200%, etc.)
+    const [zoom, setZoom] = useState(1);
+
+    // THE RENDER ENGINE
     useEffect(() => {
+        const canvas = canvasRef.current;
+        if (!canvas) return;
+        const ctx = canvas.getContext('2d', { alpha: false }); // Optimize performance
+        if (!ctx) return;
+
+        const size = 512;
+        canvas.width = size;
+        canvas.height = size;
+
         let animationFrameId: number;
 
         const render = () => {
-            const canvas = canvasRef.current;
-            const ctx = canvas?.getContext('2d');
-            if (!canvas || !ctx || !entropyMap.length) return;
+            const imgData = ctx.createImageData(size, size);
+            const data = imgData.data;
 
-            const { width, height } = canvas.getBoundingClientRect();
-            // Only update dimensions if they changed, which clears the canvas implicitly
-            if (canvas.width !== width || canvas.height !== height) {
-                canvas.width = width;
-                canvas.height = height;
+            // 1. Paint the Hilbert matrix
+            for (let i = 0; i < matrix.length; i++) {
+                const entropy = matrix[i] / 255;
+                const idx = i * 4;
+
+                // Forensic Thermal Gradient
+                data[idx] = 0;     // R
+                data[idx + 1] = Math.floor(Math.pow(entropy, 2) * 255); // G
+                data[idx + 2] = Math.floor(50 + entropy * 205); // B
+                data[idx + 3] = 255; // Alpha
+            }
+            ctx.putImageData(imgData, 0, 0);
+
+            // 2. Paint Selection Path (Cyan)
+            if (selectionRange) {
+                ctx.fillStyle = 'rgba(0, 255, 255, 0.4)';
+                for (let i = selectionRange.start; i < selectionRange.end; i++) {
+                    if (i >= matrix.length) break;
+                    const { x, y } = hilbert.d2xy(i);
+                    ctx.fillRect(x, y, 1, 1);
+                }
             }
 
-            ctx.clearRect(0, 0, canvas.width, canvas.height);
-
-            const step = canvas.width / entropyMap.length;
-            entropyMap.forEach((val, i) => {
-                if (val > 7.0) ctx.fillStyle = '#ff2a2a';
-                else if (val < 4.8) ctx.fillStyle = '#3b82f6';
-                else ctx.fillStyle = '#1a1a20';
-                ctx.fillRect(i * step, 0, Math.max(1, step), canvas.height);
-            });
+            // 3. Paint Hover Crosshair (White)
+            if (hoverPos) {
+                ctx.strokeStyle = '#fff';
+                ctx.lineWidth = 1;
+                ctx.beginPath();
+                ctx.moveTo(hoverPos.x, 0); ctx.lineTo(hoverPos.x, size);
+                ctx.moveTo(0, hoverPos.y); ctx.lineTo(size, hoverPos.y);
+                ctx.stroke();
+            }
         };
 
+        // requestAnimationFrame guarantees the DOM is ready before painting
         animationFrameId = requestAnimationFrame(render);
+
         return () => cancelAnimationFrame(animationFrameId);
-    }, [entropyMap]);
 
-    return (
-        <canvas ref={canvasRef} style={{ width: '100%', height: '100%', cursor: 'crosshair', display: 'block' }}
-            onClick={(e) => {
-                const rect = e.currentTarget.getBoundingClientRect();
-                const percent = (e.clientX - rect.left) / rect.width;
-                onJump(Math.floor(percent * (entropyMap.length * 256)));
-            }}
-        />
-    );
-};
+    }, [matrix, selectionRange, hoverPos, hilbert]);
 
-const Radar: React.FC<RadarProps> = ({ matrix, entropyMap = [], highlightOffset, selectionRange, hilbert, onJump }) => {
-    const [viewMode, setViewMode] = useState<'HILBERT' | 'LINEAR'>('HILBERT');
-    const [zoom, setZoom] = useState(0);
+    const handleMouseMove = (e: React.MouseEvent) => {
+        if (!canvasRef.current) return;
+        const rect = canvasRef.current.getBoundingClientRect();
 
-    const getHilbertLayers = () => {
-        const layers: any[] = [
-            new BitmapLayer({
-                id: 'hilbert-bitmap', image: { width: 512, height: 512, data: matrix },
-                bounds: [0, 0, 512, 512], pickable: true,
-                onClick: (info) => {
-                    if (info.bitmapPixel) onJump(hilbert.xyToOffset(info.bitmapPixel[0], info.bitmapPixel[1]));
-                }
-            })
-        ];
+        // Core Fix: Calculate accurate X/Y based on the physical rendered size vs internal size
+        const scaleX = 512 / rect.width;
+        const scaleY = 512 / rect.height;
 
-        if (selectionRange) {
-            const startXY = hilbert.offsetToXY(selectionRange.start);
-            const endXY = hilbert.offsetToXY(selectionRange.end);
-            layers.push(new ScatterplotLayer({
-                id: 'markers',
-                data: [{ pos: [startXY[0] + 0.5, startXY[1] + 0.5], color: [0, 240, 255] }, { pos: [endXY[0] + 0.5, endXY[1] + 0.5], color: [255, 40, 40] }],
-                getPosition: d => d.pos, getFillColor: d => d.color, getRadius: 6, updateTriggers: { data: selectionRange }
-            }));
+        const x = Math.floor((e.clientX - rect.left) * scaleX);
+        const y = Math.floor((e.clientY - rect.top) * scaleY);
+
+        if (x >= 0 && x < 512 && y >= 0 && y < 512) {
+            setHoverPos({ x, y });
+            setHoverOffset(hilbert.xy2d(x, y));
         }
-
-        if (highlightOffset !== null) {
-            const [x, y] = hilbert.offsetToXY(highlightOffset);
-            layers.push(new ScatterplotLayer({
-                id: 'reticle', data: [{ pos: [x + 0.5, y + 0.5] }],
-                getPosition: d => d.pos, getFillColor: [0, 0, 0, 0], getLineColor: [0, 240, 255],
-                stroked: true, radiusMinPixels: 10, getRadius: 20, updateTriggers: { getPosition: highlightOffset }
-            }));
-        }
-        return layers;
     };
 
-
+    const handleZoomIn = () => setZoom(prev => Math.min(prev + 1, 8));
+    const handleZoomOut = () => setZoom(prev => Math.max(prev - 1, 1));
+    const handleResetZoom = () => setZoom(1);
 
     return (
-        <div style={{ width: '100%', height: '100%', display: 'flex', flexDirection: 'column' }}>
-            <div style={{ height: '32px', borderBottom: '1px solid #333', display: 'flex', alignItems: 'center', padding: '0 10px', justifyContent: 'space-between', background: '#0a0a0f' }}>
-                <span style={{ fontSize: '10px', color: '#555', letterSpacing: '1px' }}>GLOBAL RADAR</span>
+        // 1. OUTER WRAPPER (Strict boundaries, no scrolling here)
+        <div style={{ width: '100%', height: '100%', position: 'relative', background: '#050505', overflow: 'hidden' }}>
 
-                <div style={{ display: 'flex', gap: '5px', alignItems: 'center' }}>
-                    {/* Zoom Controls */}
-                    {viewMode === 'HILBERT' && (
-                        <div style={{ display: 'flex', gap: '2px', marginRight: '10px', borderRight: '1px solid #333', paddingRight: '10px' }}>
-                            <button onClick={() => setZoom(z => Math.max(z - 1, -2))} title="Zoom Out" style={{ background: 'transparent', border: 'none', cursor: 'pointer', color: '#888' }}><ZoomOut size={12} /></button>
-                            <span style={{ fontSize: '9px', color: '#555', minWidth: '20px', textAlign: 'center' }}>{Math.round(zoom * 10) / 10}x</span>
-                            <button onClick={() => setZoom(z => Math.min(z + 1, 10))} title="Zoom In" style={{ background: 'transparent', border: 'none', cursor: 'pointer', color: '#888' }}><ZoomIn size={12} /></button>
-                            <button onClick={() => setZoom(0)} title="Reset Zoom" style={{ background: 'transparent', border: 'none', cursor: 'pointer', color: '#888' }}><Maximize size={12} /></button>
-                        </div>
-                    )}
-
-                    {/* View toggles */}
-                    <button onClick={() => setViewMode('HILBERT')} style={{ background: viewMode === 'HILBERT' ? 'var(--accent-cyan)' : 'transparent', border: '1px solid #333', padding: '2px', cursor: 'pointer' }}><Box size={14} color={viewMode === 'HILBERT' ? '#000' : '#888'} /></button>
-                    <button onClick={() => setViewMode('LINEAR')} style={{ background: viewMode === 'LINEAR' ? 'var(--accent-cyan)' : 'transparent', border: '1px solid #333', padding: '2px', cursor: 'pointer' }}><Activity size={14} color={viewMode === 'LINEAR' ? '#000' : '#888'} /></button>
-                </div>
+            {/* 2. STRICTLY POSITIONED CONTROLS (Will NEVER disappear/scroll away) */}
+            <div style={{ position: 'absolute', top: 10, right: 10, display: 'flex', flexDirection: 'column', gap: 6, zIndex: 100 }}>
+                <button onClick={handleZoomIn} style={btnStyle} title="Zoom In"><ZoomIn size={14} /></button>
+                <button onClick={handleZoomOut} style={btnStyle} title="Zoom Out"><ZoomOut size={14} /></button>
+                <button onClick={handleResetZoom} style={btnStyle} title="Reset Size"><Maximize size={14} /></button>
             </div>
-            <div style={{ flex: 1, position: 'relative', overflow: 'hidden' }}>
-                {viewMode === 'HILBERT' ? (
-                    <DeckGL
-                        viewState={{ target: [256, 256, 0], zoom: zoom, minZoom: -2, maxZoom: 10 }}
-                        onViewStateChange={({ viewState }) => setZoom(viewState.zoom)}
-                        controller={true}
-                        layers={getHilbertLayers()}
-                        getCursor={() => 'crosshair'}
-                        style={{ background: '#000' }}
-                    />
-                ) : <LinearView entropyMap={entropyMap} onJump={onJump} />}
+
+            {/* 3. FLOATING INFO OVERLAY */}
+            <div style={{ position: 'absolute', bottom: 10, left: 10, background: 'rgba(0,0,0,0.8)', padding: '4px 8px', borderRadius: '4px', fontSize: '10px', color: '#00f0ff', zIndex: 100, border: '1px solid #222', fontFamily: 'monospace' }}>
+                {hoverOffset !== null ? `OFFSET: 0x${hoverOffset.toString(16).toUpperCase()}` : 'SCANNING MATRIX...'}
+                <span style={{ marginLeft: 8, color: '#888' }}>{zoom}x</span>
+            </div>
+
+            {/* 4. SCROLLABLE INNER VIEWPORT */}
+            <div ref={containerRef} style={{ width: '100%', height: '100%', overflow: 'auto', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                <canvas
+                    ref={canvasRef}
+                    onMouseMove={handleMouseMove}
+                    onMouseLeave={() => { setHoverPos(null); setHoverOffset(null); }}
+                    onClick={() => hoverOffset !== null && onJump(hoverOffset)}
+                    style={{
+                        // Core Fix: Use responsive width percentages instead of transform: scale()
+                        width: `${zoom * 100}%`,
+                        minWidth: '100%',     // Ensures it fills the panel initially
+                        maxWidth: `${zoom * 512}px`, // Caps the max native resolution
+                        aspectRatio: '1 / 1',
+                        imageRendering: 'pixelated', // Keeps it sharp when zoomed
+                        cursor: 'crosshair',
+                        display: 'block',
+                        boxShadow: '0 0 20px rgba(0, 240, 255, 0.05)'
+                    }}
+                />
             </div>
         </div>
     );
+};
+
+const btnStyle = {
+    background: 'rgba(15, 15, 17, 0.9)',
+    border: '1px solid #333',
+    color: '#ccc',
+    borderRadius: '4px',
+    padding: '6px',
+    cursor: 'pointer',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backdropFilter: 'blur(4px)',
+    transition: 'all 0.2s'
 };
 
 export default Radar;
