@@ -94,9 +94,25 @@ function App() {
         setCurrentScrollOffset(offset);
     };
 
+    const handleEditByte = async (index: number, newByte: number) => {
+        if (!fileData || !fileObj) return;
+
+        // Mutate the Uint8Array
+        const newData = new Uint8Array(fileData);
+        newData[index] = newByte;
+        setFileData(newData);
+
+        // Re-package into a File object for the analyzer
+        const newFile = new File([newData], fileObj.name, { type: fileObj.type, lastModified: Date.now() });
+        setFileObj(newFile);
+
+        // Re-run the engine
+        analyzeFile(newFile);
+    };
+
     useEffect(() => {
         // Pass BOTH parsed structures AND raw bytes to detect signatures (PCAP, CR)
-        setStandard(detectStandard(result?.parsed_structures, fileData));
+        setStandard(detectStandard(result?.parsed_structures, fileData, result?.entropy_map));
     }, [result, fileData]);
 
     const selectedBytes = useMemo(() => {
@@ -221,6 +237,7 @@ function App() {
                                                         hoverRange={hoverRange}
                                                         onSelect={(s, e) => { setSelectionRange({ start: s, end: e }); }}
                                                         onScroll={handleScrollUpdate}
+                                                        onEditByte={handleEditByte}
                                                     />
                                                 )}
                                             </div>

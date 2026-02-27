@@ -8,7 +8,7 @@ export interface DetectedStandard {
     color: string;
 }
 
-export const detectStandard = (nodes: TlvNode[] | undefined, rawBytes: Uint8Array | null): DetectedStandard | null => {
+export const detectStandard = (nodes: TlvNode[] | undefined, rawBytes: Uint8Array | null, entropyMap?: number[]): DetectedStandard | null => {
 
     // 1. MAGIC NUMBER DETECTION (Raw Headers)
     if (rawBytes && rawBytes.length >= 4) {
@@ -41,14 +41,16 @@ export const detectStandard = (nodes: TlvNode[] | undefined, rawBytes: Uint8Arra
         }
     }
 
-    // 3. ENCRYPTION / COMPRESSION HEURISTIC (If no structure found, check entropy proxy via bytes)
-    if (rawBytes && rawBytes.length > 512) {
-        // Proxy heuristic: count unique bytes in the first 512 bytes. High unique count = high entropy.
-        const firstBlock = rawBytes.slice(0, 512);
-        const uniqueBytes = new Set(firstBlock);
+    // 3. ENCRYPTION / COMPRESSION HEURISTIC
+    if (entropyMap && entropyMap.length > 0) {
+        let sum = 0;
+        for (let i = 0; i < entropyMap.length; i++) {
+            sum += entropyMap[i];
+        }
+        const avgEntropy = sum / entropyMap.length;
 
-        if (uniqueBytes.size > 200) { // Threshold for "extreme entropy" proxy
-            return { name: "ENCRYPTED / COMPRESSED", description: "High entropy payload detected. No readable header.", category: "UNKNOWN", confidence: "LOW", color: "#ffaa00" };
+        if (avgEntropy > 7.5) {
+            return { name: "ENCRYPTED / COMPRESSED", description: "High entropy payload detected. No readable header.", category: "UNKNOWN", confidence: "HIGH", color: "#ffaa00" };
         }
     }
 

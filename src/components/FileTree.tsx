@@ -14,55 +14,117 @@ interface Props {
     onNodeSelect?: (node: TlvNode) => void;
 }
 
-const TreeNode: React.FC<{
-    node: TlvNode,
-    selectionOffset?: number | null,
-    onSelect: (s: number, e: number) => void,
-    onHover: (r: { start: number, end: number } | null) => void,
-    onNodeClick?: (n: TlvNode) => void
-}> = ({ node, selectionOffset, onSelect, onHover, onNodeClick }) => {
-    const [expanded, setExpanded] = useState(false);
-    const nodeRef = useRef<HTMLDivElement>(null);
-    const hasChildren = node.children && node.children.length > 0;
-    const endOffset = node.offset + node.tag_length + node.value_length;
-    const containsSelection = selectionOffset !== undefined && selectionOffset !== null && selectionOffset >= node.offset && selectionOffset < endOffset;
+import { FixedSizeList as List } from 'react-window';
 
-    useEffect(() => { if (containsSelection && hasChildren) setExpanded(true); }, [containsSelection, hasChildren]);
-    useEffect(() => { if (containsSelection && !hasChildren && nodeRef.current) nodeRef.current.scrollIntoView({ behavior: 'smooth', block: 'nearest' }); }, [containsSelection, hasChildren]);
-
-    return (
-        <div style={{ marginLeft: '12px', marginTop: '4px', fontSize: '0.75rem' }}>
-            <div
-                ref={nodeRef}
-                style={{
-                    display: 'flex', alignItems: 'center', cursor: 'pointer', padding: '2px 4px',
-                    background: containsSelection && !hasChildren ? 'rgba(0, 240, 255, 0.15)' : 'transparent',
-                    color: containsSelection && !hasChildren ? '#fff' : '#aaa',
-                }}
-                onClick={(e) => {
-                    e.stopPropagation(); onSelect(node.offset, endOffset);
-                    if (onNodeClick) onNodeClick(node);
-                    if (hasChildren) setExpanded(!expanded);
-                }}
-                onMouseEnter={(e) => { e.stopPropagation(); onHover({ start: node.offset, end: endOffset }); }}
-                onMouseLeave={() => onHover(null)}
-            >
-                {hasChildren ? (expanded ? <ChevronDown size={12} color="#555" /> : <ChevronRight size={12} color="#555" />) : <span style={{ width: '12px' }} />}
-                {node.is_container ? <Folder size={12} color={containsSelection ? "#fff" : "var(--accent-blue)"} style={{ marginLeft: '4px' }} /> : <Box size={12} color={containsSelection ? "#fff" : "#555"} style={{ marginLeft: '4px' }} />}
-                <span style={{ marginLeft: '6px' }}>{node.name}</span>
-            </div>
-            {expanded && hasChildren && (
-                <div style={{ borderLeft: '1px solid #222' }}>
-                    {node.children.map((child: TlvNode, i: number) => <TreeNode key={i} node={child} selectionOffset={selectionOffset} onSelect={onSelect} onHover={onHover} onNodeClick={onNodeClick} />)}
-                </div>
-            )}
-        </div>
-    );
-};
+interface FlatNode {
+    node: TlvNode;
+    depth: number;
+    expanded: boolean;
+    hasChildren: boolean;
+    containsSelection: boolean;
+}
 
 const FileTree: React.FC<Props> = ({ file, fileSize = 0, structures, standard, selectionOffset, onSelectRange, onHoverRange, onNodeSelect }) => {
     const [viewMode, setViewMode] = useState<'simple' | 'detailed'>('simple');
     const [isMinimized, setIsMinimized] = useState(false);
+    const [expandedOffsets, setExpandedOffsets] = useState<Set<number>>(new Set());
+    const listRef = useRef<List>(null);
+
+    // Expand nodes that contain the selection
+    useEffect(() => {
+        if (!structures || selectionOffset === null || selectionOffset === undefined) return;
+
+        let changed = false;
+        const newExpanded = new Set(expandedOffsets);
+
+        const ensurePathExpanded = (nodes: TlvNode[]) => {
+            for (const node of nodes) {
+                const endOffset = node.offset + node.tag_length + node.value_length;
+                const contains = selectionOffset >= node.offset && selectionOffset < endOffset;
+
+                if (contains && node.children && node.children.length > 0) {
+                    if (!newExpanded.has(node.offset)) {
+                        newExpanded.add(node.offset);
+                        changed = true;
+                    }
+                    ensurePathExpanded(node.children);
+                }
+            }
+        };
+
+        ensurePathExpanded(structures);
+        if (changed) setExpandedOffsets(newExpanded);
+    }, [structures, selectionOffset]);
+
+    const toggleExpand = (offset: number) => {
+        const next = new Set(expandedOffsets);
+        if (next.has(offset)) next.delete(offset);
+        else next.add(offset);
+        setExpandedOffsets(next);
+    };
+
+    const flatTree = React.useMemo(() => {
+        if (!structures || structures.length === 0) return [];
+        const result: FlatNode[] = [];
+
+        const traverse = (nodes: TlvNode[], depth: number) => {
+            for (const node of nodes) {
+                const isExpanded = expandedOffsets.has(node.offset);
+                const hasChildren = !!(node.children && node.children.length > 0);
+                const endOffset = node.offset + node.tag_length + node.value_length;
+                const containsSel = selectionOffset !== undefined && selectionOffset !== null && selectionOffset >= node.offset && selectionOffset < endOffset;
+
+                result.push({ node, depth, expanded: isExpanded, hasChildren, containsSelection: containsSel });
+
+                if (isExpanded && hasChildren) {
+                    traverse(node.children, depth + 1);
+                }
+            }
+        };
+
+        traverse(structures, 0);
+        return result;
+    }, [structures, expandedOffsets, selectionOffset]);
+
+    // Auto-scroll to selected node via ref
+    useEffect(() => {
+        if (selectionOffset !== null && selectionOffset !== undefined && flatTree.length > 0) {
+            const idx = flatTree.findIndex(f => f.containsSelection && !f.hasChildren);
+            if (idx >= 0 && listRef.current) {
+                listRef.current.scrollToItem(idx, 'center');
+            }
+        }
+    }, [selectionOffset, flatTree]);
+
+    const Row = ({ index, style }: { index: number, style: React.CSSProperties }) => {
+        const { node, depth, expanded, hasChildren, containsSelection } = flatTree[index];
+        const endOffset = node.offset + node.tag_length + node.value_length;
+
+        return (
+            <div style={style}>
+                <div
+                    style={{
+                        display: 'flex', alignItems: 'center', cursor: 'pointer', padding: '2px 4px',
+                        marginLeft: `${depth * 12}px`, fontSize: '0.75rem',
+                        background: containsSelection && !hasChildren ? 'rgba(0, 240, 255, 0.15)' : 'transparent',
+                        color: containsSelection && !hasChildren ? '#fff' : '#aaa',
+                    }}
+                    onClick={(e) => {
+                        e.stopPropagation();
+                        onSelectRange(node.offset, endOffset);
+                        if (onNodeSelect) onNodeSelect(node);
+                        if (hasChildren) toggleExpand(node.offset);
+                    }}
+                    onMouseEnter={(e) => { e.stopPropagation(); onHoverRange({ start: node.offset, end: endOffset }); }}
+                    onMouseLeave={() => onHoverRange(null)}
+                >
+                    {hasChildren ? (expanded ? <ChevronDown size={12} color="#555" /> : <ChevronRight size={12} color="#555" />) : <span style={{ width: '12px' }} />}
+                    {node.is_container ? <Folder size={12} color={containsSelection ? "#fff" : "var(--accent-blue)"} style={{ marginLeft: '4px', flexShrink: 0 }} /> : <Box size={12} color={containsSelection ? "#fff" : "#555"} style={{ marginLeft: '4px', flexShrink: 0 }} />}
+                    <span style={{ marginLeft: '6px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{node.name}</span>
+                </div>
+            </div>
+        );
+    };
 
     if (!file) return <div style={{ padding: '30px', color: '#444', fontSize: '0.75rem', textAlign: 'center' }}>NO SIGNAL SOURCE</div>;
 
@@ -96,9 +158,11 @@ const FileTree: React.FC<Props> = ({ file, fileSize = 0, structures, standard, s
                     )}
 
                     {viewMode === 'detailed' ? (
-                        structures && structures.length > 0 ? (
-                            <div style={{ paddingLeft: '0px' }}>
-                                {structures.map((node, i) => <TreeNode key={i} node={node} selectionOffset={selectionOffset} onSelect={onSelectRange} onHover={onHoverRange} onNodeClick={onNodeSelect} />)}
+                        flatTree.length > 0 ? (
+                            <div style={{ paddingLeft: '0px', height: '100%', minHeight: '400px' }}>
+                                <List ref={listRef} height={600} itemCount={flatTree.length} itemSize={24} width="100%">
+                                    {Row}
+                                </List>
                             </div>
                         ) : <div style={{ color: '#555', fontSize: '0.75rem' }}>Parsing stream...</div>
                     ) : (

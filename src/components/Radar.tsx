@@ -13,6 +13,55 @@ interface RadarProps {
     onJump: (offset: number) => void;
 }
 
+interface LinearViewProps {
+    entropyMap: number[];
+    onJump: (offset: number) => void;
+}
+
+const LinearView: React.FC<LinearViewProps> = ({ entropyMap, onJump }) => {
+    const canvasRef = useRef<HTMLCanvasElement>(null);
+
+    useEffect(() => {
+        let animationFrameId: number;
+
+        const render = () => {
+            const canvas = canvasRef.current;
+            const ctx = canvas?.getContext('2d');
+            if (!canvas || !ctx || !entropyMap.length) return;
+
+            const { width, height } = canvas.getBoundingClientRect();
+            // Only update dimensions if they changed, which clears the canvas implicitly
+            if (canvas.width !== width || canvas.height !== height) {
+                canvas.width = width;
+                canvas.height = height;
+            }
+
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+            const step = canvas.width / entropyMap.length;
+            entropyMap.forEach((val, i) => {
+                if (val > 7.0) ctx.fillStyle = '#ff2a2a';
+                else if (val < 4.8) ctx.fillStyle = '#3b82f6';
+                else ctx.fillStyle = '#1a1a20';
+                ctx.fillRect(i * step, 0, Math.max(1, step), canvas.height);
+            });
+        };
+
+        animationFrameId = requestAnimationFrame(render);
+        return () => cancelAnimationFrame(animationFrameId);
+    }, [entropyMap]);
+
+    return (
+        <canvas ref={canvasRef} style={{ width: '100%', height: '100%', cursor: 'crosshair', display: 'block' }}
+            onClick={(e) => {
+                const rect = e.currentTarget.getBoundingClientRect();
+                const percent = (e.clientX - rect.left) / rect.width;
+                onJump(Math.floor(percent * (entropyMap.length * 256)));
+            }}
+        />
+    );
+};
+
 const Radar: React.FC<RadarProps> = ({ matrix, entropyMap = [], highlightOffset, selectionRange, hilbert, onJump }) => {
     const [viewMode, setViewMode] = useState<'HILBERT' | 'LINEAR'>('HILBERT');
     const [zoom, setZoom] = useState(0);
@@ -49,35 +98,7 @@ const Radar: React.FC<RadarProps> = ({ matrix, entropyMap = [], highlightOffset,
         return layers;
     };
 
-    const LinearView = () => {
-        const canvasRef = useRef<HTMLCanvasElement>(null);
-        useEffect(() => {
-            const canvas = canvasRef.current;
-            const ctx = canvas?.getContext('2d');
-            if (!canvas || !ctx || !entropyMap.length) return;
-            const { width, height } = canvas.getBoundingClientRect();
-            canvas.width = width; canvas.height = height;
-            ctx.clearRect(0, 0, width, height);
 
-            const step = width / entropyMap.length;
-            entropyMap.forEach((val, i) => {
-                if (val > 7.0) ctx.fillStyle = '#ff2a2a';
-                else if (val < 4.8) ctx.fillStyle = '#3b82f6';
-                else ctx.fillStyle = '#1a1a20';
-                ctx.fillRect(i * step, 0, Math.max(1, step), height);
-            });
-        }, [entropyMap]);
-
-        return (
-            <canvas ref={canvasRef} style={{ width: '100%', height: '100%', cursor: 'crosshair' }}
-                onClick={(e) => {
-                    const rect = e.currentTarget.getBoundingClientRect();
-                    const percent = (e.clientX - rect.left) / rect.width;
-                    onJump(Math.floor(percent * (entropyMap.length * 256)));
-                }}
-            />
-        );
-    };
 
     return (
         <div style={{ width: '100%', height: '100%', display: 'flex', flexDirection: 'column' }}>
@@ -110,7 +131,7 @@ const Radar: React.FC<RadarProps> = ({ matrix, entropyMap = [], highlightOffset,
                         getCursor={() => 'crosshair'}
                         style={{ background: '#000' }}
                     />
-                ) : <LinearView />}
+                ) : <LinearView entropyMap={entropyMap} onJump={onJump} />}
             </div>
         </div>
     );
