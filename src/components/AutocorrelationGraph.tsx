@@ -5,7 +5,7 @@ interface Props {
     data: number[]; // The array of calculated correlation values
 }
 
-const AutocorrelationGraph: React.FC<Props> = ({ data }) => {
+const AutocorrelationGraph: React.FC<Props> = ({ data = [] }) => {
     const canvasRef = useRef<HTMLCanvasElement>(null);
     const [hoverPos, setHoverPos] = useState<{ x: number, index: number, value: number } | null>(null);
 

@@ -97,16 +97,20 @@ function App() {
     const handleEditByte = async (index: number, newByte: number) => {
         if (!fileData || !fileObj) return;
 
-        // Mutate the Uint8Array
-        const newData = new Uint8Array(fileData);
-        newData[index] = newByte;
-        setFileData(newData);
+        // 1. Create a brand new copy of the array in memory
+        const updatedData = new Uint8Array(fileData);
 
-        // Re-package into a File object for the analyzer
-        const newFile = new File([newData], fileObj.name, { type: fileObj.type, lastModified: Date.now() });
+        // 2. Apply the forensic edit
+        updatedData[index] = newByte;
+
+        // 3. Update the React State with the NEW array
+        setFileData(updatedData);
+
+        // 4. Re-package into a File object for the analyzer
+        const newFile = new File([updatedData], fileObj.name, { type: fileObj.type, lastModified: Date.now() });
         setFileObj(newFile);
 
-        // Re-run the engine
+        // 5. Force the WASM engine to re-analyze the new payload
         analyzeFile(newFile);
     };
 
@@ -220,7 +224,7 @@ function App() {
                                 )}
 
                                 <Panel defaultSize={15} minSize={10} collapsible={true}>
-                                    <AutocorrelationGraph fileData={fileData} onLagSelect={(off) => handleJumpTo(off)} />
+                                    <AutocorrelationGraph data={fileData || []} />
                                 </Panel>
                                 <PanelResizeHandle className="resize-handle-horizontal" />
 
