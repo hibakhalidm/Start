@@ -2,9 +2,10 @@ import React, { useRef, useEffect, useState } from 'react';
 import { Activity } from 'lucide-react';
 
 interface Props {
-    data: number[]; // The array of calculated correlation values
+    data?: number[]; // Allow it to be optional from the parent
 }
 
+// FIX: Set a default empty array so data.length never crashes
 const AutocorrelationGraph: React.FC<Props> = ({ data = [] }) => {
     const canvasRef = useRef<HTMLCanvasElement>(null);
     const [hoverPos, setHoverPos] = useState<{ x: number, index: number, value: number } | null>(null);
@@ -15,7 +16,6 @@ const AutocorrelationGraph: React.FC<Props> = ({ data = [] }) => {
         const ctx = canvas.getContext('2d');
         if (!ctx) return;
 
-        // Auto-resize canvas for sharp rendering
         const rect = canvas.parentElement?.getBoundingClientRect();
         if (rect) {
             canvas.width = rect.width;
@@ -27,8 +27,7 @@ const AutocorrelationGraph: React.FC<Props> = ({ data = [] }) => {
 
         ctx.clearRect(0, 0, width, height);
 
-        // Normalize Data
-        const maxVal = Math.max(...data, 1); // Avoid division by zero
+        const maxVal = Math.max(...data, 1);
         const stepX = width / data.length;
 
         // 1. Draw Background Grid Lines
@@ -40,22 +39,21 @@ const AutocorrelationGraph: React.FC<Props> = ({ data = [] }) => {
 
         // 2. Draw The Continuous Line Graph
         ctx.beginPath();
-        ctx.strokeStyle = '#00f0ff'; // Cyan Line
+        ctx.strokeStyle = '#00f0ff';
         ctx.lineWidth = 1.5;
         ctx.lineJoin = 'round';
 
         for (let i = 0; i < data.length; i++) {
             const x = i * stepX;
-            // Map value to Y coordinate (invert Y so higher values go up)
             const normalizedY = (data[i] / maxVal) * (height * 0.8);
-            const y = height - normalizedY - 10; // 10px bottom padding
+            const y = height - normalizedY - 10;
 
             if (i === 0) ctx.moveTo(x, y);
             else ctx.lineTo(x, y);
         }
         ctx.stroke();
 
-        // 3. Optional: Add a subtle glow/fill under the line
+        // 3. Add a subtle glow/fill under the line
         ctx.lineTo(width, height);
         ctx.lineTo(0, height);
         ctx.closePath();
@@ -66,18 +64,16 @@ const AutocorrelationGraph: React.FC<Props> = ({ data = [] }) => {
         ctx.fill();
 
         // 4. Draw Hover Crosshair and Node
-        if (hoverPos) {
+        if (hoverPos && hoverPos.index < data.length) {
             const currentX = hoverPos.index * stepX;
             const normalizedY = (data[hoverPos.index] / maxVal) * (height * 0.8);
             const currentY = height - normalizedY - 10;
 
-            // Vertical Crosshair
             ctx.strokeStyle = 'rgba(255, 255, 255, 0.3)';
             ctx.beginPath();
             ctx.moveTo(currentX, 0); ctx.lineTo(currentX, height);
             ctx.stroke();
 
-            // Hover Dot
             ctx.beginPath();
             ctx.arc(currentX, currentY, 4, 0, 2 * Math.PI);
             ctx.fillStyle = '#00ff9d';
@@ -93,7 +89,6 @@ const AutocorrelationGraph: React.FC<Props> = ({ data = [] }) => {
         const rect = canvasRef.current.getBoundingClientRect();
         const x = e.clientX - rect.left;
 
-        // Map pixel X to array index
         const index = Math.floor((x / rect.width) * data.length);
         const safeIndex = Math.max(0, Math.min(index, data.length - 1));
 
@@ -104,7 +99,7 @@ const AutocorrelationGraph: React.FC<Props> = ({ data = [] }) => {
         });
     };
 
-    if (data.length === 0) {
+    if (!data || data.length === 0) {
         return (
             <div style={{ height: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', opacity: 0.3, color: '#888', fontSize: '0.75rem', gap: '8px' }}>
                 <Activity size={24} /> No correlation data computed.
@@ -121,22 +116,12 @@ const AutocorrelationGraph: React.FC<Props> = ({ data = [] }) => {
                 style={{ width: '100%', height: '100%', display: 'block', cursor: 'crosshair' }}
             />
 
-            {/* DYNAMIC HOVER TOOLTIP */}
             {hoverPos && (
                 <div style={{
-                    position: 'absolute',
-                    top: '10px',
-                    left: '10px',
-                    background: 'rgba(10, 10, 12, 0.9)',
-                    border: '1px solid #333',
-                    padding: '6px 10px',
-                    borderRadius: '4px',
-                    color: '#ccc',
-                    fontSize: '10px',
-                    fontFamily: 'monospace',
-                    backdropFilter: 'blur(4px)',
-                    pointerEvents: 'none', // Prevents tooltip from blocking mouse movements
-                    zIndex: 10
+                    position: 'absolute', top: '10px', left: '10px', background: 'rgba(10, 10, 12, 0.9)',
+                    border: '1px solid #333', padding: '6px 10px', borderRadius: '4px',
+                    color: '#ccc', fontSize: '10px', fontFamily: 'monospace', backdropFilter: 'blur(4px)',
+                    pointerEvents: 'none', zIndex: 10
                 }}>
                     <div style={{ marginBottom: '4px', color: '#888' }}>SIGNAL METRICS</div>
                     <div>LAG/OFFSET: <span style={{ color: '#fff' }}>{hoverPos.index}</span></div>
