@@ -210,6 +210,7 @@ function App() {
                                                         selectionRange={selectionRange}
                                                         hilbert={hilbert}
                                                         onJump={(off) => handleJumpTo(off)}
+                                                        onSelectRange={(start, end) => handleJumpTo(start, end - start)}
                                                     />
                                                 ) : <div style={{ height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#555' }}>AWAITING ANALYSIS...</div>}
                                             </div>
