@@ -3,10 +3,11 @@ import { Activity } from 'lucide-react';
 
 interface Props {
     data?: number[]; // Allow it to be optional from the parent
+    onJump?: (offset: number) => void; // <--- NEW PROP
 }
 
 // FIX: Set a default empty array so data.length never crashes
-const AutocorrelationGraph: React.FC<Props> = ({ data = [] }) => {
+const AutocorrelationGraph: React.FC<Props> = ({ data = [], onJump }) => {
     const canvasRef = useRef<HTMLCanvasElement>(null);
     const [hoverPos, setHoverPos] = useState<{ x: number, index: number, value: number } | null>(null);
 
@@ -99,6 +100,13 @@ const AutocorrelationGraph: React.FC<Props> = ({ data = [] }) => {
         });
     };
 
+    // NEW: Click Handler
+    const handleMouseClick = () => {
+        if (hoverPos && onJump) {
+            onJump(hoverPos.index);
+        }
+    };
+
     if (!data || data.length === 0) {
         return (
             <div style={{ height: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', opacity: 0.3, color: '#888', fontSize: '0.75rem', gap: '8px' }}>
@@ -112,6 +120,7 @@ const AutocorrelationGraph: React.FC<Props> = ({ data = [] }) => {
             <canvas
                 ref={canvasRef}
                 onMouseMove={handleMouseMove}
+                onClick={handleMouseClick} // <--- ATTACH CLICK
                 onMouseLeave={() => setHoverPos(null)}
                 style={{ width: '100%', height: '100%', display: 'block', cursor: 'crosshair' }}
             />

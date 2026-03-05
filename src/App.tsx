@@ -216,7 +216,7 @@ function App() {
                                                         selectionRange={selectionRange}
                                                         hilbert={hilbert}
                                                         onJump={(off) => handleJumpTo(off)}
-                                                        onSelectRange={(start, end) => handleJumpTo(start, end - start)}
+                                                        onSelectRange={(start, end) => setSelectionRange({ start, end })}
                                                     />
                                                 ) : <div style={{ height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#555' }}>AWAITING ANALYSIS...</div>}
                                             </div>
@@ -226,7 +226,13 @@ function App() {
                                 )}
 
                                 <Panel defaultSize={15} minSize={10} collapsible={true}>
-                                    <AutocorrelationGraph data={result?.autocorrelation_graph || []} />
+                                    <AutocorrelationGraph
+                                        data={result?.autocorrelation_graph || []}
+                                        onJump={(offset) => {
+                                            handleJumpTo(offset);
+                                            setSelectionRange({ start: offset, end: offset + 16 });
+                                        }}
+                                    />
                                 </Panel>
                                 <PanelResizeHandle className="resize-handle-horizontal" />
 
