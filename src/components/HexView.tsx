@@ -1,4 +1,4 @@
-import React, { forwardRef, useState, useEffect, useRef } from 'react';
+import React, { forwardRef, useState, useEffect, useRef, useMemo } from 'react';
 import { FixedSizeList as List } from 'react-window';
 
 interface HexViewProps {
@@ -11,19 +11,16 @@ interface HexViewProps {
 const HexView = forwardRef<any, HexViewProps>(({ data, selectionRange, onSelectRange, onByteEdit }, ref) => {
     const listRef = useRef<List>(null);
 
-    // State for the Live Editor
     const [editOffset, setEditOffset] = useState<number | null>(null);
     const [editValue, setEditValue] = useState<string>('');
     const inputRef = useRef<HTMLInputElement>(null);
 
-    // Sync external ref (for scrolling from Radar)
     React.useImperativeHandle(ref, () => ({
         scrollToItem: (index: number, align?: string) => {
             if (listRef.current) listRef.current.scrollToItem(index, align);
         }
     }));
 
-    // Auto-focus the input when a cell is double-clicked
     useEffect(() => {
         if (editOffset !== null && inputRef.current) {
             inputRef.current.focus();
@@ -50,33 +47,37 @@ const HexView = forwardRef<any, HexViewProps>(({ data, selectionRange, onSelectR
         if (e.key === 'Escape') setEditOffset(null);
     };
 
-    const Row = ({ index, style }: { index: number, style: React.CSSProperties }) => {
-        const offset = index * 16;
-        const chunk = data.slice(offset, offset + 16);
+    // CORE FIX: Bundle all state into a context object so react-window knows when to redraw rows
+    const contextData = useMemo(() => ({
+        buffer: data,
+        selectionRange,
+        editOffset,
+        editValue
+    }), [data, selectionRange, editOffset, editValue]);
 
-        // Build the ASCII string for the sidebar
+    // Update Row to destructure from 'data.context' instead of global scope
+    const Row = ({ index, style, data: context }: { index: number, style: React.CSSProperties, data: any }) => {
+        const { buffer, selectionRange, editOffset, editValue } = context;
+
+        const offset = index * 16;
+        const chunk = buffer.slice(offset, offset + 16);
+
+        // Build the ASCII string securely from the freshly updated buffer
         let asciiStr = '';
         for (let i = 0; i < chunk.length; i++) {
             const charCode = chunk[i];
-            // Printable ASCII range is 32 to 126
-            if (charCode >= 32 && charCode <= 126) {
-                asciiStr += String.fromCharCode(charCode);
-            } else {
-                asciiStr += '.'; // Map non-printables to dots
-            }
+            if (charCode >= 32 && charCode <= 126) asciiStr += String.fromCharCode(charCode);
+            else asciiStr += '.';
         }
 
         return (
             <div style={{ ...style, display: 'flex', fontFamily: 'monospace', fontSize: '0.85rem', color: '#aaa', padding: '0 10px', alignItems: 'center' }}>
-
-                {/* ADDRESS COLUMN */}
                 <div style={{ width: '80px', color: '#555', userSelect: 'none' }}>
                     {offset.toString(16).padStart(8, '0').toUpperCase()}
                 </div>
 
-                {/* HEX DATA COLUMN */}
                 <div style={{ display: 'flex', gap: '6px', flex: 1 }}>
-                    {Array.from(chunk).map((byte, i) => {
+                    {Array.from(chunk).map((byte: any, i: number) => {
                         const byteOffset = offset + i;
                         const isSelected = selectionRange && byteOffset >= selectionRange.start && byteOffset < selectionRange.end;
                         const isEditing = editOffset === byteOffset;
@@ -117,7 +118,6 @@ const HexView = forwardRef<any, HexViewProps>(({ data, selectionRange, onSelectR
                     })}
                 </div>
 
-                {/* ASCII SIDEBAR */}
                 <div style={{ width: '140px', color: '#888', letterSpacing: '1px', borderLeft: '1px solid #222', paddingLeft: '10px' }}>
                     {asciiStr}
                 </div>
@@ -129,11 +129,12 @@ const HexView = forwardRef<any, HexViewProps>(({ data, selectionRange, onSelectR
         <div style={{ flex: 1, height: '100%', background: '#0a0a0c', overflow: 'hidden' }}>
             <List
                 ref={listRef}
-                height={1000} // The parent AutoSizer should ideally override this
+                height={1000}
                 itemCount={rowCount}
                 itemSize={24}
                 width="100%"
                 style={{ overflowX: 'hidden' }}
+                itemData={contextData} // <--- The Fix
             >
                 {Row}
             </List>

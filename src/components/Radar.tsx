@@ -4,12 +4,12 @@ import { ZoomIn, ZoomOut, Maximize } from 'lucide-react';
 
 interface RadarProps {
     matrix: Uint8Array;
-    entropyMap: number[]; // Ensure this is passed from App.tsx
+    entropyMap: number[];
     highlightOffset: number | null;
     selectionRange: { start: number, end: number } | null;
     hilbert: HilbertCurve;
     onJump: (offset: number) => void;
-    onSelectRange: (start: number, end: number) => void; // New prop to sync with HexView
+    onSelectRange: (start: number, end: number) => void;
 }
 
 const Radar: React.FC<RadarProps> = ({ matrix, entropyMap, highlightOffset, selectionRange, hilbert, onJump, onSelectRange }) => {
@@ -19,7 +19,6 @@ const Radar: React.FC<RadarProps> = ({ matrix, entropyMap, highlightOffset, sele
     const [hoverOffset, setHoverOffset] = useState<number | null>(null);
     const [zoom, setZoom] = useState(1);
 
-    // ... [Keep your existing canvas render engine (useEffect requestAnimationFrame) exactly as it is] ...
     useEffect(() => {
         const canvas = canvasRef.current;
         if (!canvas) return;
@@ -34,10 +33,19 @@ const Radar: React.FC<RadarProps> = ({ matrix, entropyMap, highlightOffset, sele
             const imgData = ctx.createImageData(size, size);
             const data = imgData.data;
 
-            for (let i = 0; i < matrix.length; i++) {
-                // Determine color based on entropy
+            // Fill background with deep black
+            for (let i = 0; i < data.length; i += 4) {
+                data[i] = 5; data[i + 1] = 5; data[i + 2] = 5; data[i + 3] = 255;
+            }
+
+            // CORE FIX: Apply the 2D Hilbert Map (hilbert.d2xy) to the pixel matrix
+            const maxLen = Math.min(matrix.length, size * size);
+            for (let i = 0; i < maxLen; i++) {
                 const entropy = entropyMap && entropyMap[i] !== undefined ? (entropyMap[i] / 8.0) : (matrix[i] / 255);
-                const idx = i * 4;
+
+                const { x, y } = hilbert.d2xy(i);
+                const idx = (y * size + x) * 4; // Map Cartesian Coordinates to Linear Pixel Array
+
                 data[idx] = 0;
                 data[idx + 1] = Math.floor(Math.pow(entropy, 2) * 255);
                 data[idx + 2] = Math.floor(50 + entropy * 205);
@@ -81,11 +89,9 @@ const Radar: React.FC<RadarProps> = ({ matrix, entropyMap, highlightOffset, sele
         }
     };
 
-    // NEW: Handle clicking to select Hex Data
     const handleMouseClick = () => {
         if (hoverOffset !== null) {
-            onJump(hoverOffset); // Jump scrollbar
-            // Select exactly this byte and the next 15 to highlight a clean block in the Hex View
+            onJump(hoverOffset);
             onSelectRange(hoverOffset, hoverOffset + 16);
         }
     };
@@ -94,9 +100,8 @@ const Radar: React.FC<RadarProps> = ({ matrix, entropyMap, highlightOffset, sele
     const handleZoomOut = () => setZoom(prev => Math.max(prev - 1, 1));
     const handleResetZoom = () => setZoom(1);
 
-    // Look up calculated values for the tooltip
     const hoverEntropy = hoverOffset !== null && entropyMap && entropyMap[hoverOffset] !== undefined ? entropyMap[hoverOffset].toFixed(2) : '0.00';
-    const hoverByteHex = hoverOffset !== null && matrix ? matrix[hoverOffset].toString(16).padStart(2, '0').toUpperCase() : '00';
+    const hoverByteHex = hoverOffset !== null && matrix && matrix[hoverOffset] !== undefined ? matrix[hoverOffset].toString(16).padStart(2, '0').toUpperCase() : '00';
 
     return (
         <div style={{ width: '100%', height: '100%', position: 'relative', background: '#050505', overflow: 'hidden' }}>
@@ -106,7 +111,6 @@ const Radar: React.FC<RadarProps> = ({ matrix, entropyMap, highlightOffset, sele
                 <button onClick={handleResetZoom} style={btnStyle} title="Reset Size"><Maximize size={14} /></button>
             </div>
 
-            {/* UPGRADED FLOATING INFO OVERLAY */}
             <div style={{ position: 'absolute', bottom: 10, left: 10, background: 'rgba(5, 5, 5, 0.9)', padding: '6px 10px', borderRadius: '4px', fontSize: '10px', zIndex: 100, border: '1px solid #333', fontFamily: 'monospace', backdropFilter: 'blur(4px)', display: 'flex', flexDirection: 'column', gap: '4px' }}>
                 <div style={{ color: '#aaa' }}>
                     OFFSET: <span style={{ color: '#fff' }}>{hoverOffset !== null ? `0x${hoverOffset.toString(16).toUpperCase()}` : '---'}</span>
