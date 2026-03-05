@@ -224,7 +224,7 @@ function App() {
                                 )}
 
                                 <Panel defaultSize={15} minSize={10} collapsible={true}>
-                                    <AutocorrelationGraph data={fileData || []} />
+                                    <AutocorrelationGraph data={result?.autocorrelation_graph || []} />
                                 </Panel>
                                 <PanelResizeHandle className="resize-handle-horizontal" />
 

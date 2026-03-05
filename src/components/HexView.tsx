@@ -1,126 +1,140 @@
-import React, { forwardRef, useImperativeHandle, useRef, useState } from 'react';
+import React, { forwardRef, useState, useEffect, useRef } from 'react';
 import { FixedSizeList as List } from 'react-window';
 
 interface HexViewProps {
-    data: Uint8Array;
-    stride?: number;
-    onScroll: (offset: number) => void;
-    onSelect: (start: number, end: number) => void;
+    data: Uint8Array | null;
     selectionRange: { start: number, end: number } | null;
-    hoverRange?: { start: number, end: number } | null; // <--- NEW
-    onEditByte?: (index: number, newByte: number) => void;
+    onSelectRange: (start: number, end: number) => void;
+    onByteEdit?: (offset: number, newByte: number) => void;
 }
 
-export interface HexViewRef { scrollToOffset: (offset: number) => void; }
-
-const HexView = forwardRef<HexViewRef, HexViewProps>(({
-    data, stride = 16, onScroll, onSelect, selectionRange, hoverRange, onEditByte
-}, ref) => {
+const HexView = forwardRef<any, HexViewProps>(({ data, selectionRange, onSelectRange, onByteEdit }, ref) => {
     const listRef = useRef<List>(null);
-    const rowCount = Math.ceil(data.length / stride);
-    const [isDragging, setIsDragging] = useState(false);
-    const [dragStart, setDragStart] = useState<number | null>(null);
-    const [editingIndex, setEditingIndex] = useState<number | null>(null);
-    const [editValue, setEditValue] = useState<string>('');
 
-    useImperativeHandle(ref, () => ({
-        scrollToOffset: (offset: number) => {
-            const rowIndex = Math.floor(offset / stride);
-            listRef.current?.scrollToItem(rowIndex, 'center');
+    // State for the Live Editor
+    const [editOffset, setEditOffset] = useState<number | null>(null);
+    const [editValue, setEditValue] = useState<string>('');
+    const inputRef = useRef<HTMLInputElement>(null);
+
+    // Sync external ref (for scrolling from Radar)
+    React.useImperativeHandle(ref, () => ({
+        scrollToItem: (index: number, align?: string) => {
+            if (listRef.current) listRef.current.scrollToItem(index, align);
         }
     }));
 
-    const handleByteDown = (index: number) => { setIsDragging(true); setDragStart(index); onSelect(index, index); };
-    const handleByteEnter = (index: number) => { if (isDragging && dragStart !== null) onSelect(Math.min(dragStart, index), Math.max(dragStart, index)); };
-    const handleMouseUp = () => { setIsDragging(false); setDragStart(null); };
+    // Auto-focus the input when a cell is double-clicked
+    useEffect(() => {
+        if (editOffset !== null && inputRef.current) {
+            inputRef.current.focus();
+            inputRef.current.select();
+        }
+    }, [editOffset]);
 
-    const handleDoubleClick = (idx: number, val: number) => {
-        setEditingIndex(idx);
-        setEditValue(val.toString(16).padStart(2, '0').toUpperCase());
-    };
+    if (!data || data.length === 0) return null;
 
-    const handleEditKeyDown = (e: React.KeyboardEvent<HTMLInputElement>, idx: number) => {
-        if (e.key === 'Enter') {
-            const newByte = parseInt(editValue, 16);
-            if (!isNaN(newByte) && newByte >= 0 && newByte <= 255) {
-                if (onEditByte) onEditByte(idx, newByte);
+    const rowCount = Math.ceil(data.length / 16);
+
+    const handleCommitEdit = () => {
+        if (editOffset !== null && onByteEdit) {
+            const parsed = parseInt(editValue, 16);
+            if (!isNaN(parsed) && parsed >= 0 && parsed <= 255) {
+                onByteEdit(editOffset, parsed);
             }
-            setEditingIndex(null);
-        } else if (e.key === 'Escape') {
-            setEditingIndex(null);
         }
+        setEditOffset(null);
     };
 
-    const Row = ({ index, style }: any) => {
-        const offset = index * stride;
-        if (offset >= data.length) return null;
+    const handleKeyDown = (e: React.KeyboardEvent) => {
+        if (e.key === 'Enter') handleCommitEdit();
+        if (e.key === 'Escape') setEditOffset(null);
+    };
 
-        const rowData = [];
-        for (let i = 0; i < stride; i++) {
-            const byteIndex = offset + i;
-            if (byteIndex >= data.length) break;
-            rowData.push({ val: data[byteIndex], idx: byteIndex });
+    const Row = ({ index, style }: { index: number, style: React.CSSProperties }) => {
+        const offset = index * 16;
+        const chunk = data.slice(offset, offset + 16);
+
+        // Build the ASCII string for the sidebar
+        let asciiStr = '';
+        for (let i = 0; i < chunk.length; i++) {
+            const charCode = chunk[i];
+            // Printable ASCII range is 32 to 126
+            if (charCode >= 32 && charCode <= 126) {
+                asciiStr += String.fromCharCode(charCode);
+            } else {
+                asciiStr += '.'; // Map non-printables to dots
+            }
         }
-
-        const asciiData = rowData.map(({ val }) => {
-            return (val >= 32 && val <= 126) ? String.fromCharCode(val) : '.';
-        }).join('');
 
         return (
-            <div style={{ ...style, fontFamily: 'var(--font-mono)', fontSize: '13px', display: 'flex', alignItems: 'center', userSelect: 'none' }}>
-                <span style={{ color: '#555', marginRight: '16px', minWidth: '80px' }}>{offset.toString(16).padStart(8, '0').toUpperCase()}</span>
-                <div style={{ display: 'flex', marginRight: '16px', flexWrap: 'nowrap' }}>
-                    {rowData.map(({ val, idx }) => {
-                        const isSelected = selectionRange && idx >= selectionRange.start && idx <= selectionRange.end;
-                        const isHovered = !isSelected && hoverRange && idx >= hoverRange.start && idx < hoverRange.end; // <--- GHOST LOGIC
-                        const isEditing = editingIndex === idx;
+            <div style={{ ...style, display: 'flex', fontFamily: 'monospace', fontSize: '0.85rem', color: '#aaa', padding: '0 10px', alignItems: 'center' }}>
 
-                        if (isEditing) {
-                            return (
-                                <input
-                                    key={idx}
-                                    autoFocus
-                                    value={editValue}
-                                    onChange={(e) => setEditValue(e.target.value.replace(/[^0-9A-Fa-f]/gi, '').slice(0, 2))}
-                                    onKeyDown={(e) => handleEditKeyDown(e, idx)}
-                                    onBlur={() => setEditingIndex(null)}
-                                    style={{
-                                        width: '18px', marginRight: '6px', textAlign: 'center', background: '#fff',
-                                        color: '#000', border: 'none', padding: '0',
-                                        fontFamily: 'var(--font-mono)', fontSize: '13px', outline: 'none'
-                                    }}
-                                />
-                            );
-                        }
+                {/* ADDRESS COLUMN */}
+                <div style={{ width: '80px', color: '#555', userSelect: 'none' }}>
+                    {offset.toString(16).padStart(8, '0').toUpperCase()}
+                </div>
+
+                {/* HEX DATA COLUMN */}
+                <div style={{ display: 'flex', gap: '6px', flex: 1 }}>
+                    {Array.from(chunk).map((byte, i) => {
+                        const byteOffset = offset + i;
+                        const isSelected = selectionRange && byteOffset >= selectionRange.start && byteOffset < selectionRange.end;
+                        const isEditing = editOffset === byteOffset;
 
                         return (
-                            <span
-                                key={idx} onMouseDown={() => handleByteDown(idx)} onMouseEnter={() => handleByteEnter(idx)} onMouseUp={handleMouseUp}
-                                onDoubleClick={() => handleDoubleClick(idx, val)}
+                            <div
+                                key={i}
+                                onDoubleClick={() => {
+                                    setEditOffset(byteOffset);
+                                    setEditValue(byte.toString(16).padStart(2, '0').toUpperCase());
+                                }}
+                                onClick={() => onSelectRange(byteOffset, byteOffset + 1)}
                                 style={{
-                                    marginRight: '6px', display: 'inline-block', width: '18px', textAlign: 'center',
-                                    color: isSelected ? '#000' : (isHovered ? 'var(--accent-cyan)' : '#a5b3ce'),
-                                    background: isSelected ? 'var(--accent-cyan)' : (isHovered ? 'rgba(0, 240, 255, 0.1)' : 'transparent'),
-                                    border: isHovered ? '1px solid rgba(0, 240, 255, 0.3)' : '1px solid transparent', // <--- GHOST BORDER
-                                    cursor: 'pointer', padding: '0', borderRadius: '2px'
+                                    width: '20px', textAlign: 'center', cursor: 'pointer', borderRadius: '2px',
+                                    background: isSelected ? 'rgba(0, 240, 255, 0.2)' : 'transparent',
+                                    color: isSelected ? '#fff' : (byte === 0 ? '#444' : 'var(--accent-cyan)'),
+                                    position: 'relative'
                                 }}
                             >
-                                {val.toString(16).padStart(2, '0').toUpperCase()}
-                            </span>
+                                {isEditing ? (
+                                    <input
+                                        ref={inputRef}
+                                        value={editValue}
+                                        onChange={(e) => setEditValue(e.target.value.replace(/[^0-9A-Fa-f]/gi, '').slice(0, 2))}
+                                        onBlur={handleCommitEdit}
+                                        onKeyDown={handleKeyDown}
+                                        style={{
+                                            position: 'absolute', top: -2, left: -2, width: '24px', height: '20px',
+                                            background: '#fff', color: '#000', border: 'none', outline: 'none',
+                                            textAlign: 'center', fontSize: '0.85rem', fontWeight: 'bold', zIndex: 10
+                                        }}
+                                    />
+                                ) : (
+                                    byte.toString(16).padStart(2, '0').toUpperCase()
+                                )}
+                            </div>
                         );
                     })}
                 </div>
+
                 {/* ASCII SIDEBAR */}
-                <div style={{ color: '#666', borderLeft: '1px solid #333', paddingLeft: '16px', marginLeft: 'auto', whiteSpace: 'pre', minWidth: '150px' }}>
-                    {asciiData}
+                <div style={{ width: '140px', color: '#888', letterSpacing: '1px', borderLeft: '1px solid #222', paddingLeft: '10px' }}>
+                    {asciiStr}
                 </div>
             </div>
         );
     };
 
     return (
-        <div onMouseLeave={handleMouseUp} style={{ height: '100%', width: '100%' }}>
-            <List ref={listRef} height={600} itemCount={rowCount} itemSize={24} width="100%" onItemsRendered={({ visibleStartIndex }: { visibleStartIndex: number }) => onScroll(visibleStartIndex * stride)}>
+        <div style={{ flex: 1, height: '100%', background: '#0a0a0c', overflow: 'hidden' }}>
+            <List
+                ref={listRef}
+                height={1000} // The parent AutoSizer should ideally override this
+                itemCount={rowCount}
+                itemSize={24}
+                width="100%"
+                style={{ overflowX: 'hidden' }}
+            >
                 {Row}
             </List>
         </div>
