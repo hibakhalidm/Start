@@ -111,7 +111,9 @@ function App() {
         setFileObj(newFile);
 
         // 5. Force the WASM engine to re-analyze the new payload
-        analyzeFile(newFile);
+        setTimeout(() => {
+            analyzeFile(newFile);
+        }, 50);
     };
 
     useEffect(() => {
@@ -272,9 +274,9 @@ function App() {
                                     <div style={{ padding: '15px', display: 'flex', flexDirection: 'column', height: 'calc(100% - 30px)', gap: '15px', overflowY: 'auto' }}>
 
                                         {/* INSPECTOR VIEW */}
-                                        {showInspector && selectedNode && (
+                                        {showInspector && (
                                             <div style={{ flexShrink: 0 }}>
-                                                <StructureInspector node={selectedNode} fileData={fileData} onFocus={(s, e) => handleJumpTo(s, e - s)} />
+                                                <StructureInspector node={selectedNode} fileData={fileData} selectionRange={selectionRange} onFocus={(s, e) => handleJumpTo(s, e - s)} />
                                             </div>
                                         )}
 
