@@ -126,7 +126,42 @@ function App() {
         return fileData.slice(selectionRange.start, Math.min(selectionRange.end, selectionRange.start + 65536));
     }, [fileData, selectionRange]);
 
+    // NEW PRECISE REVERSE LOOKUP ALGORITHM
+    const activeInspectorNode = useMemo(() => {
+        // If the user clicked a specific tree node, always show that first
+        if (selectedNode) return selectedNode;
 
+        // If the user hasn't selected any hex bytes, or we haven't parsed the file, abort
+        if (!selectionRange || !result?.parsed_structures) return null;
+
+        const targetOffset = selectionRange.start;
+
+        // Recursive helper to traverse the tree and find the smallest encompassing TLV block
+        const findDeepestNode = (nodes: TlvNode[]): TlvNode | null => {
+            let bestMatch: TlvNode | null = null;
+
+            for (const node of nodes) {
+                const nodeStart = node.offset;
+                const nodeEnd = node.offset + node.tag_length + node.value_length;
+
+                // Does our hex cursor fall exactly inside this protocol block?
+                if (targetOffset >= nodeStart && targetOffset < nodeEnd) {
+                    bestMatch = node; // Found a match at this level
+
+                    // If it's a container (like a Sequence), dive deeper to find the narrowest leaf
+                    if (node.is_container && node.children && node.children.length > 0) {
+                        const deeperMatch = findDeepestNode(node.children);
+                        if (deeperMatch) {
+                            return deeperMatch; // Return the smallest child covering the offset
+                        }
+                    }
+                }
+            }
+            return bestMatch;
+        };
+
+        return findDeepestNode(result.parsed_structures);
+    }, [selectedNode, selectionRange, result?.parsed_structures]);
 
     const currentViewPercent = fileData ? currentScrollOffset / fileData.length : 0;
     const isAnalyzing = !result && fileObj; // Simple heuristic for now
@@ -180,7 +215,7 @@ function App() {
                         <div style={{ width: '100px', height: '100px', border: '2px dashed #333', borderRadius: '20px', display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: '20px', animation: 'pulse-border 2s infinite' }}>
                             <Download size={40} color="#666" />
                         </div>
-                        <h2 style={{ color: '#eee', marginBottom: '8px', letterSpacing: '1px' }}>DROP EVIDENCE FILE TO BEGIN</h2>
+                        <h2 style={{ color: '#eee', marginBottom: '8px', letterSpacing: '1px' }}>DROP FILE TO BEGIN</h2>
                         <p style={{ fontSize: '0.9rem', color: '#666' }}>Supports .pcap, .cr, and Raw Binaries</p>
                     </div>
                 ) : (
@@ -282,7 +317,7 @@ function App() {
                                         {/* INSPECTOR VIEW */}
                                         {showInspector && (
                                             <div style={{ flexShrink: 0 }}>
-                                                <StructureInspector node={selectedNode} fileData={fileData} selectionRange={selectionRange} onFocus={(s, e) => handleJumpTo(s, e - s)} />
+                                                <StructureInspector node={activeInspectorNode} fileData={fileData} selectionRange={selectionRange} onFocus={(s, e) => handleJumpTo(s, e - s)} />
                                             </div>
                                         )}
 

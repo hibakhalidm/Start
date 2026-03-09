@@ -139,10 +139,10 @@ const Radar: React.FC<RadarProps> = ({ matrix, entropyMap, highlightOffset, sele
                     >
                         {hoverPos && (
                             <>
-                                {/* Vertical Line */}
-                                <div style={{ position: 'absolute', top: 0, left: `${(hoverPos.x / 512) * 100}%`, width: '1px', height: '100%', background: 'rgba(255,255,255,0.7)', pointerEvents: 'none' }} />
-                                {/* Horizontal Line */}
-                                <div style={{ position: 'absolute', top: `${(hoverPos.y / 512) * 100}%`, left: 0, width: '100%', height: '1px', background: 'rgba(255,255,255,0.7)', pointerEvents: 'none' }} />
+                                {/* Vertical Line (Now perfectly locking to pixels mathematically) */}
+                                <div style={{ position: 'absolute', top: 0, left: `${(hoverPos.x / 512) * 100}%`, width: `${(1 / 512) * 100}%`, height: '100%', background: 'rgba(255,255,255,0.7)', pointerEvents: 'none' }} />
+                                {/* Horizontal Line (Perfect scaling for Zoom level) */}
+                                <div style={{ position: 'absolute', top: `${(hoverPos.y / 512) * 100}%`, left: 0, width: '100%', height: `${(1 / 512) * 100}%`, background: 'rgba(255,255,255,0.7)', pointerEvents: 'none' }} />
                             </>
                         )}
                     </div>
