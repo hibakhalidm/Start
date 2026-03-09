@@ -55,27 +55,56 @@ pub fn analyze(data: &[u8]) -> Result<JsValue, JsValue> {
 }
 
 fn calculate_autocorrelation_graph(data: &[u8]) -> Vec<f64> {
-    // Analyze first 4KB for lag patterns 0..128
-    let len = data.len().min(4096);
+    // Analyze first 64KB for lag patterns 0..512 to expose encryption block sizes
+    let len = data.len().min(65536);
     let sample = &data[..len];
-    let max_lag = 128;
+    let max_lag = 512.min(len);
+
+    if max_lag == 0 {
+        return Vec::new();
+    }
+
     let mut graph = Vec::with_capacity(max_lag);
+    let mut max_score: f64 = 0.0;
 
     for lag in 0..max_lag {
         let mut match_count = 0;
         let comparisons = len - lag;
+
         if comparisons == 0 {
             graph.push(0.0);
             continue;
         }
 
+        // Fast identical byte overlap check
         for i in 0..comparisons {
             if sample[i] == sample[i + lag] {
                 match_count += 1;
             }
         }
-        graph.push(match_count as f64 / comparisons as f64);
+
+        let score = match_count as f64 / comparisons as f64;
+
+        // Track the highest correlation peak (excluding Lag 0 self-identity)
+        if lag > 0 && score > max_score {
+            max_score = score;
+        }
+        graph.push(score);
     }
+
+    // Normalize the graph so spikes prominently scale against noise
+    let scale = if max_score > 0.0 {
+        1.0 / max_score
+    } else {
+        1.0
+    };
+    for lag in 1..graph.len() {
+        graph[lag] *= scale;
+    }
+    if graph.len() > 0 {
+        graph[0] = 1.0;
+    }
+
     graph
 }
 
@@ -316,6 +345,13 @@ fn parse_tlv_node(data: &[u8], offset: usize, depth: usize) -> Option<TlvNode> {
             } else {
                 break;
             }
+        }
+
+        // STRICT BOUNDS CHECKING
+        // If the parsed children do not mathematically sum to the declared container length,
+        // it is a false positive guessing on noise. Abort this ghost branch.
+        if child_cursor != end_limit {
+            return None;
         }
     }
 
