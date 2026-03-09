@@ -14,6 +14,7 @@ interface RadarProps {
 
 const Radar: React.FC<RadarProps> = ({ matrix, entropyMap, highlightOffset, selectionRange, hilbert, onJump, onSelectRange }) => {
     const canvasRef = useRef<HTMLCanvasElement>(null);
+    const uiCanvasRef = useRef<HTMLCanvasElement>(null); // NEW UI CANVAS
     const containerRef = useRef<HTMLDivElement>(null);
 
     // UI State (Decoupled from Canvas Render)
@@ -67,6 +68,27 @@ const Radar: React.FC<RadarProps> = ({ matrix, entropyMap, highlightOffset, sele
             }
         }
     }, [matrix, entropyMap, selectionRange, hilbert]); // Notice hoverPos is REMOVED!
+
+    // NEW: Render the lightweight crosshair only on the transparent UI canvas
+    useEffect(() => {
+        const canvas = uiCanvasRef.current;
+        if (!canvas) return;
+        const ctx = canvas.getContext('2d', { alpha: true });
+        if (!ctx) return;
+
+        const size = 512;
+        canvas.width = size;
+        canvas.height = size;
+
+        // Clear previous frame
+        ctx.clearRect(0, 0, size, size);
+
+        if (hoverPos) {
+            ctx.fillStyle = 'rgba(255, 255, 255, 0.7)';
+            ctx.fillRect(hoverPos.x, 0, 1, size);
+            ctx.fillRect(0, hoverPos.y, size, 1);
+        }
+    }, [hoverPos]);
 
     const handleMouseMove = (e: React.MouseEvent) => {
         if (!canvasRef.current) return;
@@ -124,28 +146,20 @@ const Radar: React.FC<RadarProps> = ({ matrix, entropyMap, highlightOffset, sele
 
                 <div style={{ position: 'relative', width: `${zoom * 100}%`, minWidth: '100%', maxWidth: `${zoom * 512}px`, aspectRatio: '1 / 1' }}>
 
-                    {/* The Heavy Canvas */}
+                    {/* LAYER 1: The Heavy Math Canvas */}
                     <canvas
                         ref={canvasRef}
-                        style={{ width: '100%', height: '100%', display: 'block', imageRendering: 'pixelated' }}
+                        style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', display: 'block', imageRendering: 'pixelated' }}
                     />
 
-                    {/* The Lightweight CSS Crosshair Overlay */}
-                    <div
+                    {/* LAYER 2: The Lightweight UI Crosshair Canvas */}
+                    <canvas
+                        ref={uiCanvasRef}
                         onMouseMove={handleMouseMove}
                         onClick={handleMouseClick}
                         onMouseLeave={() => setHoverPos(null)}
-                        style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', cursor: 'crosshair', zIndex: 10 }}
-                    >
-                        {hoverPos && (
-                            <>
-                                {/* Vertical Line (Now perfectly locking to pixels mathematically) */}
-                                <div style={{ position: 'absolute', top: 0, left: `${(hoverPos.x / 512) * 100}%`, width: `${(1 / 512) * 100}%`, height: '100%', background: 'rgba(255,255,255,0.7)', pointerEvents: 'none' }} />
-                                {/* Horizontal Line (Perfect scaling for Zoom level) */}
-                                <div style={{ position: 'absolute', top: `${(hoverPos.y / 512) * 100}%`, left: 0, width: '100%', height: `${(1 / 512) * 100}%`, background: 'rgba(255,255,255,0.7)', pointerEvents: 'none' }} />
-                            </>
-                        )}
-                    </div>
+                        style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', display: 'block', imageRendering: 'pixelated', cursor: 'crosshair', zIndex: 10 }}
+                    />
 
                 </div>
             </div>
