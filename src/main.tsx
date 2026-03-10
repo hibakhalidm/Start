@@ -3,7 +3,7 @@ import ReactDOM from 'react-dom/client';
 import './App.css';
 
 // DIAGNOSTIC: Dynamically import App to catch "Module Not Found" errors
-const App = React.lazy(() => import('./App.tsx'));
+const App = React.lazy(() => import('./App'));
 
 const BootLoader = () => (
     <div style={{

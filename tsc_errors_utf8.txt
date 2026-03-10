@@ -1,0 +1,41 @@
+src/App.tsx(10,19): error TS2614: Module '"./components/HexView"' has no exported member 'HexViewRef'. Did you mean to use 'import HexViewRef from "./components/HexView"' instead?
+src/App.tsx(234,30): error TS2375: Type '{ file: File | null; fileSize: number; structures: TlvNode[] | undefined; standard: DetectedStandard | null; selectionOffset: number | null; onSelectRange: (s: number, e: number) => void; onHoverRange: Dispatch<...>; onNodeSelect: (node: TlvNode) => void; }' is not assignable to type 'Props' with 'exactOptionalPropertyTypes: true'. Consider adding 'undefined' to the types of the target's properties.
+src/App.tsx(264,57): error TS2322: Type '{ matrix: Uint8Array<ArrayBufferLike>; entropyMap: number[]; highlightOffset: number | null; selectionRange: { start: number; end: number; } | null; hilbert: HilbertCurve; onJump: (off: number) => void; onSelectRange: (start: number, end: number) => void; onHover: (offset: number | null) => void; }' is not assignable to type 'IntrinsicAttributes & RadarProps'.
+src/App.tsx(293,57): error TS2322: Type '{ ref: MutableRefObject<HexViewRef>; data: Uint8Array<ArrayBufferLike>; stride: number; selectionRange: { start: number; end: number; } | null; hoverRange: { ...; } | null; onSelect: (s: any, e: any) => void; onScroll: (offset: number) => void; onEditByte: (index: number, newByte: number) => Promise<...>; }' is not assignable to type 'IntrinsicAttributes & HexViewProps & RefAttributes<any>'.
+src/App.tsx(296,68): error TS7006: Parameter 's' implicitly has an 'any' type.
+src/App.tsx(296,71): error TS7006: Parameter 'e' implicitly has an 'any' type.
+src/components/AutocorrelationGraph.tsx(49,34): error TS2532: Object is possibly 'undefined'.
+src/components/AutocorrelationGraph.tsx(70,34): error TS2532: Object is possibly 'undefined'.
+src/components/AutocorrelationGraph.tsx(99,13): error TS2322: Type 'number | undefined' is not assignable to type 'number'.
+src/components/FileTree.tsx(100,17): error TS2339: Property 'node' does not exist on type 'FlatNode | undefined'.
+src/components/FileTree.tsx(100,23): error TS2339: Property 'depth' does not exist on type 'FlatNode | undefined'.
+src/components/FileTree.tsx(100,30): error TS2339: Property 'expanded' does not exist on type 'FlatNode | undefined'.
+src/components/FileTree.tsx(100,40): error TS2339: Property 'hasChildren' does not exist on type 'FlatNode | undefined'.
+src/components/FileTree.tsx(100,53): error TS2339: Property 'containsSelection' does not exist on type 'FlatNode | undefined'.
+src/components/HexView.tsx(20,70): error TS2345: Argument of type 'string | undefined' is not assignable to parameter of type 'Align | undefined'.
+src/components/Radar.tsx(49,42): error TS2339: Property 'd2xy' does not exist on type 'HilbertCurve'.
+src/components/Radar.tsx(67,46): error TS2339: Property 'd2xy' does not exist on type 'HilbertCurve'.
+src/components/Radar.tsx(107,36): error TS2339: Property 'xy2d' does not exist on type 'HilbertCurve'.
+src/components/StructureInspector.tsx(22,42): error TS2339: Property 'tag' does not exist on type 'TlvNode'.
+src/components/StructureInspector.tsx(23,64): error TS2551: Property 'value_length_len' does not exist on type 'TlvNode'. Did you mean 'value_length'?
+src/components/StructureInspector.tsx(62,56): error TS2339: Property 'tag' does not exist on type 'TlvNode'.
+src/components/StructureInspector.tsx(95,59): error TS2538: Type 'undefined' cannot be used as an index type.
+src/components/StructureInspector.tsx(111,99): error TS2339: Property 'tag' does not exist on type 'TlvNode'.
+src/components/TransformationPipeline.tsx(22,73): error TS2532: Object is possibly 'undefined'.
+src/components/TransformationPipeline.tsx(30,25): error TS2322: Type 'number | undefined' is not assignable to type 'number'.
+src/components/TransformationPipeline.tsx(31,25): error TS2322: Type 'number | undefined' is not assignable to type 'number'.
+src/components/TransformationPipeline.tsx(33,25): error TS2322: Type 'number | undefined' is not assignable to type 'number'.
+src/main.tsx(6,37): error TS5097: An import path can only end with a '.tsx' extension when 'allowImportingTsExtensions' is enabled.
+src/utils/standards.ts(15,26): error TS2532: Object is possibly 'undefined'.
+src/utils/standards.ts(15,48): error TS2532: Object is possibly 'undefined'.
+src/utils/standards.ts(15,70): error TS2532: Object is possibly 'undefined'.
+src/utils/standards.ts(15,90): error TS2532: Object is possibly 'undefined'.
+src/utils/standards.ts(34,47): error TS2339: Property 'tag' does not exist on type 'TlvNode'.
+src/utils/standards.ts(34,65): error TS2339: Property 'tag' does not exist on type 'TlvNode'.
+src/utils/standards.ts(36,13): error TS18048: 'root' is possibly 'undefined'.
+src/utils/standards.ts(36,18): error TS2339: Property 'tag' does not exist on type 'TlvNode'.
+src/utils/standards.ts(39,13): error TS18048: 'root' is possibly 'undefined'.
+src/utils/standards.ts(39,18): error TS2339: Property 'tag' does not exist on type 'TlvNode'.
+src/utils/standards.ts(39,34): error TS18048: 'root' is possibly 'undefined'.
+src/utils/standards.ts(39,39): error TS2339: Property 'tag' does not exist on type 'TlvNode'.
+src/utils/standards.ts(48,20): error TS2532: Object is possibly 'undefined'.

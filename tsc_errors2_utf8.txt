@@ -1,0 +1,16 @@
+src/App.tsx(10,19): error TS2614: Module '"./components/HexView"' has no exported member 'HexViewRef'. Did you mean to use 'import HexViewRef from "./components/HexView"' instead?
+src/App.tsx(264,57): error TS2322: Type '{ matrix: Uint8Array<ArrayBufferLike>; entropyMap: number[]; highlightOffset: number; selectionRange: { start: number; end: number; }; hilbert: HilbertCurve; onJump: (off: number) => void; onSelectRange: (start: number, end: number) => void; onHover: (offset: number) => void; }' is not assignable to type 'IntrinsicAttributes & RadarProps'.
+src/App.tsx(293,57): error TS2322: Type '{ ref: MutableRefObject<HexViewRef>; data: Uint8Array<ArrayBufferLike>; stride: number; selectionRange: { start: number; end: number; }; hoverRange: { ...; }; onSelect: (s: any, e: any) => void; onScroll: (offset: number) => void; onEditByte: (index: number, newByte: number) => Promise<...>; }' is not assignable to type 'IntrinsicAttributes & HexViewProps & RefAttributes<any>'.
+src/components/HexView.tsx(20,70): error TS2345: Argument of type 'string' is not assignable to parameter of type 'Align'.
+src/components/Radar.tsx(49,42): error TS2339: Property 'd2xy' does not exist on type 'HilbertCurve'.
+src/components/Radar.tsx(67,46): error TS2339: Property 'd2xy' does not exist on type 'HilbertCurve'.
+src/components/Radar.tsx(107,36): error TS2339: Property 'xy2d' does not exist on type 'HilbertCurve'.
+src/components/StructureInspector.tsx(22,37): error TS2345: Argument of type 'string' is not assignable to parameter of type 'number'.
+src/components/StructureInspector.tsx(62,51): error TS2345: Argument of type 'string' is not assignable to parameter of type 'number'.
+src/components/StructureInspector.tsx(111,112): error TS2554: Expected 0 arguments, but got 1.
+src/main.tsx(6,37): error TS5097: An import path can only end with a '.tsx' extension when 'allowImportingTsExtensions' is enabled.
+src/utils/standards.ts(34,45): error TS2367: This comparison appears to be unintentional because the types 'string' and 'number' have no overlap.
+src/utils/standards.ts(34,63): error TS2367: This comparison appears to be unintentional because the types 'string' and 'number' have no overlap.
+src/utils/standards.ts(36,13): error TS2367: This comparison appears to be unintentional because the types 'string' and 'number' have no overlap.
+src/utils/standards.ts(39,13): error TS2367: This comparison appears to be unintentional because the types 'string' and 'number' have no overlap.
+src/utils/standards.ts(39,34): error TS2367: This comparison appears to be unintentional because the types 'string' and 'number' have no overlap.

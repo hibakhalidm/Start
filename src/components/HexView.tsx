@@ -1,23 +1,34 @@
 import React, { forwardRef, useState, useEffect, useRef, useMemo } from 'react';
-import { FixedSizeList as List } from 'react-window';
+import { FixedSizeList as List, Align } from 'react-window';
+
+export interface HexViewRef {
+    scrollToItem: (index: number, align?: Align) => void;
+    scrollToOffset: (offset: number) => void;
+}
 
 interface HexViewProps {
     data: Uint8Array | null;
     selectionRange: { start: number, end: number } | null;
-    onSelectRange: (start: number, end: number) => void;
-    onByteEdit?: (offset: number, newByte: number) => void;
+    hoverRange?: { start: number, end: number } | null;
+    stride?: number;
+    onSelect: (start: number, end: number) => void;
+    onScroll?: (offset: number) => void;
+    onEditByte?: (offset: number, newByte: number) => void;
 }
 
-const HexView = forwardRef<any, HexViewProps>(({ data, selectionRange, onSelectRange, onByteEdit }, ref) => {
+const HexView = forwardRef<HexViewRef, HexViewProps>(({ data, selectionRange, hoverRange, stride = 16, onSelect, onScroll, onEditByte }, ref) => {
     const listRef = useRef<List>(null);
 
     const [editOffset, setEditOffset] = useState<number | null>(null);
     const [editValue, setEditValue] = useState<string>('');
     const inputRef = useRef<HTMLInputElement>(null);
 
-    React.useImperativeHandle(ref, () => ({
-        scrollToItem: (index: number, align?: string) => {
+    React.useImperativeHandle(ref, (): HexViewRef => ({
+        scrollToItem: (index: number, align?: Align) => {
             if (listRef.current) listRef.current.scrollToItem(index, align);
+        },
+        scrollToOffset: (offset: number) => {
+            if (listRef.current) listRef.current.scrollToItem(Math.floor(offset / 16), "center");
         }
     }));
 
@@ -33,10 +44,10 @@ const HexView = forwardRef<any, HexViewProps>(({ data, selectionRange, onSelectR
     const rowCount = Math.ceil(data.length / 16);
 
     const handleCommitEdit = () => {
-        if (editOffset !== null && onByteEdit) {
+        if (editOffset !== null && onEditByte) {
             const parsed = parseInt(editValue, 16);
             if (!isNaN(parsed) && parsed >= 0 && parsed <= 255) {
-                onByteEdit(editOffset, parsed);
+                onEditByte(editOffset, parsed);
             }
         }
         setEditOffset(null);
@@ -51,16 +62,19 @@ const HexView = forwardRef<any, HexViewProps>(({ data, selectionRange, onSelectR
     const contextData = useMemo(() => ({
         buffer: data,
         selectionRange,
+        hoverRange,
+        stride,
         editOffset,
-        editValue
-    }), [data, selectionRange, editOffset, editValue]);
+        editValue,
+        onSelect
+    }), [data, selectionRange, hoverRange, stride, editOffset, editValue, onSelect]);
 
     // Update Row to destructure from 'data.context' instead of global scope
     const Row = ({ index, style, data: context }: { index: number, style: React.CSSProperties, data: any }) => {
-        const { buffer, selectionRange, editOffset, editValue } = context;
+        const { buffer, selectionRange, editOffset, editValue, stride, hoverRange, onSelect } = context;
 
-        const offset = index * 16;
-        const chunk = buffer.slice(offset, offset + 16);
+        const offset = index * stride;
+        const chunk = buffer.slice(offset, offset + stride);
 
         // Build the ASCII string securely from the freshly updated buffer
         let asciiStr = '';
@@ -89,7 +103,7 @@ const HexView = forwardRef<any, HexViewProps>(({ data, selectionRange, onSelectR
                                     setEditOffset(byteOffset);
                                     setEditValue(byte.toString(16).padStart(2, '0').toUpperCase());
                                 }}
-                                onClick={() => onSelectRange(byteOffset, byteOffset + 1)}
+                                onClick={() => onSelect && onSelect(byteOffset, byteOffset + 1)}
                                 style={{
                                     width: '20px', textAlign: 'center', cursor: 'pointer', borderRadius: '2px',
                                     background: isSelected ? 'rgba(0, 240, 255, 0.2)' : 'transparent',

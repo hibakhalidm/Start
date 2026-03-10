@@ -166,6 +166,15 @@ function App() {
     const currentViewPercent = fileData ? currentScrollOffset / fileData.length : 0;
     const isAnalyzing = !result && fileObj; // Simple heuristic for now
 
+    const handleRadarHover = (offset: number | null) => {
+        setHoveredOffset(offset);
+        if (offset !== null) {
+            setHoverRange({ start: offset, end: offset + 1 });
+        } else {
+            setHoverRange(null);
+        }
+    };
+
     return (
         <div
             className={`app-container ${isDragging ? 'drop-active' : ''}`}
@@ -252,6 +261,7 @@ function App() {
                                                         hilbert={hilbert}
                                                         onJump={(off) => handleJumpTo(off)}
                                                         onSelectRange={(start, end) => setSelectionRange({ start, end })}
+                                                        onHover={handleRadarHover}
                                                     />
                                                 ) : <div style={{ height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#555' }}>AWAITING ANALYSIS...</div>}
                                             </div>
@@ -317,7 +327,7 @@ function App() {
                                         {/* INSPECTOR VIEW */}
                                         {showInspector && (
                                             <div style={{ flexShrink: 0 }}>
-                                                <StructureInspector node={activeInspectorNode} fileData={fileData} selectionRange={selectionRange} onFocus={(s, e) => handleJumpTo(s, e - s)} />
+                                                <StructureInspector node={activeInspectorNode} fileData={fileData} selectionRange={selectionRange} onFocus={(s, e) => { if (s !== undefined && e !== undefined) handleJumpTo(s, e - s); }} />
                                             </div>
                                         )}
 

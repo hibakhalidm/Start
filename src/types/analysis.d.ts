@@ -8,10 +8,10 @@ export interface TlvNode {
     is_container: boolean;
     children: TlvNode[];
 }
-
 export interface AnalysisResult {
     entropy_map: number[];
     hilbert_matrix: Uint8Array;
     autocorrelation_graph: number[];
     parsed_structures?: TlvNode[];
 }
+//# sourceMappingURL=analysis.d.ts.map

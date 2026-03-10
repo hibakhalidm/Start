@@ -2,10 +2,8 @@ import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
 import * as wasmPlugin from 'vite-plugin-wasm';
 import * as topLevelAwaitPlugin from 'vite-plugin-top-level-await';
-
-const wasm = (wasmPlugin as any).default || wasmPlugin;
-const topLevelAwait = (topLevelAwaitPlugin as any).default || topLevelAwaitPlugin;
-
+const wasm = wasmPlugin.default || wasmPlugin;
+const topLevelAwait = topLevelAwaitPlugin.default || topLevelAwaitPlugin;
 export default defineConfig({
     plugins: [
         react(),
@@ -22,3 +20,4 @@ export default defineConfig({
         strictPort: true,
     }
 });
+//# sourceMappingURL=vite.config.js.map
