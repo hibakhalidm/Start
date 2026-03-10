@@ -287,6 +287,34 @@ pub fn parse_file_structure(data: &[u8]) -> Result<JsValue, JsValue> {
     let mut cursor = 0;
 
     while cursor < data.len() {
+        // --- ZLIB Cryptographic / Compression Check ---
+        if cursor + 2 <= data.len() {
+            let current_slice = &data[cursor..cursor + 2];
+            // 0x78 0x9C (Default), 0x78 0xDA (Best), 0x78 0x01 (No compression/fast)
+            if current_slice == &[0x78, 0x9C]
+                || current_slice == &[0x78, 0xDA]
+                || current_slice == &[0x78, 0x01]
+            {
+                let peek_end = (cursor + 256).min(data.len());
+                let entropy = shannon_entropy(&data[cursor..peek_end]);
+
+                // Entropy signature confirms ZLIB stream, skip TLV guessing
+                if entropy > 7.0 {
+                    let stream_len = data.len() - cursor;
+                    nodes.push(TlvNode {
+                        name: "ZLIB Compressed Stream".to_string(),
+                        offset: cursor,
+                        tag_length: 2,
+                        value_length: stream_len.saturating_sub(2),
+                        is_container: false,
+                        children: Vec::new(),
+                    });
+                    cursor += stream_len;
+                    continue;
+                }
+            }
+        }
+
         if let Some(node) = parse_tlv_node(data, cursor, 0) {
             cursor = node.offset + node.tag_length + node.value_length;
             nodes.push(node);
@@ -355,14 +383,35 @@ fn parse_tlv_node(data: &[u8], offset: usize, depth: usize) -> Option<TlvNode> {
         }
     }
 
-    let name = if tag == 0x30 {
-        "ETSI_Sequence".to_string()
+    let mut name = String::new();
+
+    if tag == 0x30 {
+        // X.509 Certificate Heuristic: Large Sequence whose first child is also a Sequence
+        if !children.is_empty() && children[0].name.contains("Sequence") && value_length > 100 {
+            name = "Suspected X.509 Cryptographic Certificate".to_string();
+        } else {
+            name = "ETSI_Sequence".to_string();
+        }
+    } else if tag == 0x06 {
+        // PKCS#7 Crypto OID Detection
+        if value_length == 9 && current_offset + 9 <= data.len() {
+            let oid_bytes = &data[current_offset..current_offset + 9];
+            if oid_bytes == &[0x2A, 0x86, 0x48, 0x86, 0xF7, 0x0D, 0x01, 0x07, 0x02] {
+                name = "PKCS#7 SignedData OID".to_string();
+            } else if oid_bytes == &[0x2A, 0x86, 0x48, 0x86, 0xF7, 0x0D, 0x01, 0x07, 0x03] {
+                name = "PKCS#7 EnvelopedData OID".to_string();
+            } else {
+                name = "ObjectIdentifier".to_string();
+            }
+        } else {
+            name = "ObjectIdentifier".to_string();
+        }
     } else if tag == 0x02 {
-        "Integer".to_string()
+        name = "Integer".to_string();
     } else if tag == 0x04 {
-        "OctetString".to_string()
+        name = "OctetString".to_string();
     } else {
-        format!("Tag_0x{:02X}", tag)
+        name = format!("Tag_0x{:02X}", tag);
     };
 
     Some(TlvNode {
