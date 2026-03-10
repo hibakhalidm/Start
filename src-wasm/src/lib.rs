@@ -1,140 +1,228 @@
-use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
 use wasm_bindgen::prelude::*;
+use serde::Serialize;
+use std::cmp;
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize)]
+pub struct TlvNode {
+    pub tag: u8,
+    pub name: String,
+    pub tag_length: usize,
+    pub value_length: usize,
+    pub value_length_len: usize,
+    pub offset: usize,
+    pub is_container: bool,
+    pub children: Vec<TlvNode>,
+    pub signature: Option<String>, // Cryptographic Identifier
+}
+
+#[derive(Serialize)]
 pub struct AnalysisResult {
+    pub parsed_structures: Vec<TlvNode>,
     pub entropy_map: Vec<f64>,
-    #[serde(with = "serde_bytes")]
-    pub hilbert_matrix: Vec<u8>,
-    pub signatures: Vec<String>,
     pub autocorrelation_graph: Vec<f64>,
+    pub hilbert_matrix: Vec<u8>,
 }
-
-impl AnalysisResult {
-    pub fn new(
-        entropy_map: Vec<f64>,
-        hilbert_matrix: Vec<u8>,
-        signatures: Vec<String>,
-        autocorrelation_graph: Vec<f64>,
-    ) -> AnalysisResult {
-        AnalysisResult {
-            entropy_map,
-            hilbert_matrix,
-            signatures,
-            autocorrelation_graph,
-        }
-    }
-}
-
-const HILBERT_SIZE: usize = 512;
-const HILBERT_PIXELS: usize = HILBERT_SIZE * HILBERT_SIZE;
 
 #[wasm_bindgen]
 pub fn analyze(data: &[u8]) -> Result<JsValue, JsValue> {
-    let entropy_map = calculate_entropy_sliding_window(data, 256);
-    let hilbert_matrix = generate_hilbert_matrix(data);
-    let signatures = detect_signatures(data);
+    let parsed_structures = parse_tlv(data);
+    let entropy_map = calculate_entropy_map(data);
     let autocorrelation_graph = calculate_autocorrelation_graph(data);
+    let hilbert_matrix = generate_hilbert_matrix(data);
 
-    // Autocorrelation check (Vendor Periodic detection)
-    // In a real scenario, this might modify signatures or return a separate flag.
-    // Here we append to signatures if detected.
-    let mut final_signatures = signatures;
-    if detect_autocorrelation(data) {
-        final_signatures.push("VENDOR_PERIODIC_DETECTED".to_string());
-    }
-
-    let result = AnalysisResult::new(
+    let result = AnalysisResult {
+        parsed_structures,
         entropy_map,
-        hilbert_matrix,
-        final_signatures,
         autocorrelation_graph,
-    );
-    Ok(serde_wasm_bindgen::to_value(&result)?)
+        hilbert_matrix,
+    };
+
+    Ok(serde_wasm_bindgen::to_value(&result).map_err(|e| e.to_string())?)
 }
 
-fn calculate_autocorrelation_graph(data: &[u8]) -> Vec<f64> {
-    // Analyze first 64KB for lag patterns 0..512 to expose encryption block sizes
-    let len = data.len().min(65536);
-    let sample = &data[..len];
-    let max_lag = 512.min(len);
+// ─── TLV / ASN.1 Parsing ─────────────────────────────────────────────────────
 
-    if max_lag == 0 {
-        return Vec::new();
+pub fn parse_tlv(data: &[u8]) -> Vec<TlvNode> {
+    let mut nodes = Vec::new();
+    let mut cursor = 0;
+    while cursor < data.len() {
+        if let Some(node) = parse_tlv_node(data, cursor, data.len(), 0) {
+            cursor = node.offset + node.tag_length + node.value_length_len + node.value_length;
+            nodes.push(node);
+        } else {
+            cursor += 1;
+        }
+    }
+    nodes
+}
+
+fn parse_tlv_node(data: &[u8], offset: usize, end_limit: usize, depth: usize) -> Option<TlvNode> {
+    if offset >= end_limit || depth > 64 {
+        return None;
     }
 
-    let mut graph = Vec::with_capacity(max_lag);
-    let mut max_score: f64 = 0.0;
-
-    for lag in 0..max_lag {
-        let mut match_count = 0;
-        let comparisons = len - lag;
-
-        if comparisons == 0 {
-            graph.push(0.0);
-            continue;
+    // ── 1. MAGIC NUMBER PRE-FLIGHT SCAN ──────────────────────────────────────
+    // Detect ZLIB Streams BEFORE the parser tries to interpret them as broken TLV tags.
+    if end_limit - offset >= 16 && depth == 0 {
+        let b0 = data[offset];
+        let b1 = data[offset + 1];
+        if b0 == 0x78 && (b1 == 0x9C || b1 == 0xDA || b1 == 0x01) {
+            let check_end = cmp::min(offset + 256, end_limit);
+            let entropy = calculate_shannon_entropy(&data[offset..check_end]);
+            if entropy > 7.0 {
+                let label = match b1 {
+                    0x9C => "ZLIB Compressed Stream (Default Compression)",
+                    0xDA => "ZLIB Compressed Stream (Best Compression)",
+                    _    => "ZLIB Stream (No Compression)",
+                };
+                return Some(TlvNode {
+                    tag: 0xFF, // Virtual tag for non-TLV signatures
+                    name: label.to_string(),
+                    tag_length: 2,
+                    value_length: (end_limit - offset).saturating_sub(2),
+                    value_length_len: 0,
+                    offset,
+                    is_container: false,
+                    children: vec![],
+                    signature: Some(label.to_string()),
+                });
+            }
         }
+    }
 
-        // Fast identical byte overlap check
-        for i in 0..comparisons {
-            if sample[i] == sample[i + lag] {
-                match_count += 1;
+    // ── 2. STANDARD ASN.1 / BER-TLV PARSER ───────────────────────────────────
+    let tag = data[offset];
+    let tag_length = 1;
+    let mut cursor = offset + tag_length;
+
+    if cursor >= end_limit {
+        return None;
+    }
+
+    let len_byte = data[cursor];
+    let mut value_length = 0;
+    let mut value_length_len = 1;
+
+    if len_byte < 128 {
+        value_length = len_byte as usize;
+    } else {
+        let num_len_bytes = (len_byte & 0x7F) as usize;
+        if num_len_bytes == 0 || num_len_bytes > 4 || cursor + 1 + num_len_bytes > end_limit {
+            return None;
+        }
+        for i in 0..num_len_bytes {
+            value_length = (value_length << 8) | (data[cursor + 1 + i] as usize);
+        }
+        value_length_len += num_len_bytes;
+    }
+
+    cursor += value_length_len;
+    if cursor + value_length > end_limit {
+        return None;
+    }
+
+    let value_start = cursor;
+    let is_container = (tag & 0x20) == 0x20;
+    let mut children = Vec::new();
+    let mut signature: Option<String> = None;
+
+    // ── 3. CRYPTOGRAPHIC ENVELOPE DETECTION ──────────────────────────────────
+
+    // A) X.509 Certificate Heuristic
+    // X.509 invariant: SEQUENCE { SEQUENCE { ... } } where the outer sequence is > 100B
+    if tag == 0x30 && value_length > 100 && value_length_len >= 3 && data[offset + 1] == 0x82 {
+        if value_start < end_limit && data[value_start] == 0x30 {
+            signature = Some("Suspected X.509 Cryptographic Certificate".to_string());
+        }
+    }
+
+    // B) PKCS#7 Enveloped / Signed Data OID Detection
+    // Full OID TLV: 06 09 2A 86 48 86 F7 0D 01 07 {02|03}
+    let pkcs7_enveloped: [u8; 11] = [0x06, 0x09, 0x2A, 0x86, 0x48, 0x86, 0xF7, 0x0D, 0x01, 0x07, 0x03];
+    let pkcs7_signed:    [u8; 11] = [0x06, 0x09, 0x2A, 0x86, 0x48, 0x86, 0xF7, 0x0D, 0x01, 0x07, 0x02];
+
+    if is_container && value_length >= 11 && value_start + 11 <= end_limit {
+        let probe = &data[value_start..value_start + 11];
+        if probe == pkcs7_enveloped {
+            signature = Some("PKCS#7 Enveloped Data (Encrypted Payload Wrapper)".to_string());
+        } else if probe == pkcs7_signed {
+            signature = Some("PKCS#7 Signed Data (Cryptographic Signature Block)".to_string());
+        }
+    }
+
+    // ── 4. RECURSIVE CHILD PARSING (Containers only) ─────────────────────────
+    if is_container && value_length > 0 {
+        let mut child_cursor = value_start;
+        let node_end = value_start + value_length;
+        let mut valid = true;
+
+        while child_cursor < node_end {
+            if let Some(child) = parse_tlv_node(data, child_cursor, node_end, depth + 1) {
+                child_cursor = child.offset + child.tag_length + child.value_length_len + child.value_length;
+                children.push(child);
+            } else {
+                valid = false;
+                break;
             }
         }
 
-        let score = match_count as f64 / comparisons as f64;
-
-        // Track the highest correlation peak (excluding Lag 0 self-identity)
-        if lag > 0 && score > max_score {
-            max_score = score;
+        // Strict hallucinaton guard: parsed children must sum to exactly the declared length
+        if !valid || child_cursor != node_end {
+            return None;
         }
-        graph.push(score);
+    } else if !is_container && value_length >= 32 && signature.is_none() {
+        // ── 5. HIGH-ENTROPY LEAF DETECTION ──────────────────────────────────
+        let end = cmp::min(value_start + value_length, end_limit);
+        let entropy = calculate_shannon_entropy(&data[value_start..end]);
+        if entropy > 7.5 {
+            signature = Some(format!(
+                "High-Entropy Payload ({:.2} bits/byte) — Likely Encrypted or Compressed",
+                entropy
+            ));
+        }
     }
 
-    // Normalize the graph so spikes prominently scale against noise
-    let scale = if max_score > 0.0 {
-        1.0 / max_score
+    // ── 6. TAG NAME RESOLUTION ────────────────────────────────────────────────
+    let name = if let Some(ref sig) = signature {
+        sig.clone()
     } else {
-        1.0
+        match tag {
+            0x30 => "ETSI_Sequence".to_string(),
+            0x31 => "Set".to_string(),
+            0x02 => "Integer".to_string(),
+            0x04 => "OctetString".to_string(),
+            0x05 => "Null".to_string(),
+            0x06 => "ObjectIdentifier".to_string(),
+            0x0C => "UTF8String".to_string(),
+            0x13 => "PrintableString".to_string(),
+            0x16 => "IA5String".to_string(),
+            0x17 => "UTCTime".to_string(),
+            0x80 => "ContextSpecific[0]".to_string(),
+            0x81 => "ContextSpecific[1]".to_string(),
+            0xA0 => "ContextSpecific[0] Constructed".to_string(),
+            0xA1 => "ContextSpecific[1] Constructed".to_string(),
+            0xA2 => "ContextSpecific[2] Constructed".to_string(),
+            0xA3 => "ContextSpecific[3] Constructed".to_string(),
+            _    => format!("Tag_0x{:02X}", tag),
+        }
     };
-    for lag in 1..graph.len() {
-        graph[lag] *= scale;
-    }
-    if graph.len() > 0 {
-        graph[0] = 1.0;
-    }
 
-    graph
+    Some(TlvNode {
+        tag,
+        name,
+        tag_length,
+        value_length,
+        value_length_len,
+        offset,
+        is_container,
+        children,
+        signature,
+    })
 }
 
-fn calculate_entropy_sliding_window(data: &[u8], window_size: usize) -> Vec<f64> {
-    // Optimization: Calculate entropy for chunks or sliding window.
-    // For large files, doing this byte-by-byte sliding is very expensive.
-    // We will do a stepped sliding window or chunk-based for performance prototype,
-    // but the requirement says "sliding window". We'll implement a simplified version
-    // that outputs a map scaled to a reasonable resolution for visualization,
-    // or if intended for a graph, returns a set number of points.
-    // Assuming we want a detailed graph, but not 1:1 for GB files.
-    // Let's output 1 value per 1024 bytes or similar, or just window over the first N bytes?
-    // The prompt implies "Entropy Map", possibly for the whole file.
-    // We'll use a step size to keep output vector manageable.
+// ─── Entropy ─────────────────────────────────────────────────────────────────
 
-    let step = 1024.max(data.len() / 2000); // Target ~2000 points max
-    let mut entropies = Vec::with_capacity(data.len() / step + 1);
-
-    for window in data.chunks(window_size).step_by(step / window_size + 1) {
-        // Approximation loop
-        // Correct sliding window implementation is O(N*W).
-        // For speed on big files, we usually do block entropy.
-        // Let's stick to block entropy for the prototype unless strict sliding is forced.
-        // "Sliding window of 256 bytes".
-        entropies.push(shannon_entropy(window));
-    }
-    entropies
-}
-
-fn shannon_entropy(data: &[u8]) -> f64 {
+fn calculate_shannon_entropy(data: &[u8]) -> f64 {
     if data.is_empty() {
         return 0.0;
     }
@@ -144,81 +232,110 @@ fn shannon_entropy(data: &[u8]) -> f64 {
     }
     let len = data.len() as f64;
     let mut entropy = 0.0;
-    for &count in &counts {
-        if count > 0 {
-            let p = count as f64 / len;
+    for &c in &counts {
+        if c > 0 {
+            let p = c as f64 / len;
             entropy -= p * p.log2();
         }
     }
     entropy
 }
 
-fn generate_hilbert_matrix(data: &[u8]) -> Vec<u8> {
-    // Map data bytes to Hilbert Curve pixels.
-    // If data > pixels, we downsample or heat-map implementation.
-    // If data < pixels, we fill.
-    // Requirement: "Bind the hilbert_matrix (Uint8Array) directly to the texture."
-    // 512x512 = 262144 pixels.
+fn calculate_entropy_map(data: &[u8]) -> Vec<f64> {
+    let chunk_size = 16;
+    let step = if data.len() > 1_000_000 { 16 } else { 1 };
+    let mut map = Vec::with_capacity(data.len());
 
-    let mut matrix = vec![0u8; HILBERT_PIXELS];
+    for i in (0..data.len()).step_by(step) {
+        let end = cmp::min(i + chunk_size, data.len());
+        let entropy = calculate_shannon_entropy(&data[i..end]);
+        for _ in 0..step {
+            if map.len() < data.len() {
+                map.push(entropy);
+            }
+        }
+    }
+    map
+}
 
-    // Simple 1-to-1 mapping for first 256KB, or mod mapping?
-    // Usually we map sequential bytes to the curve coordinates.
-    // To visualize the *whole* file, each pixel represents a block.
-    // To visualize the *content*, we wrap.
-    // "Offset to xy" logic suggests linear mapping.
+// ─── Autocorrelation Graph ────────────────────────────────────────────────────
 
-    let bytes_to_map = data.len().min(HILBERT_PIXELS);
+fn calculate_autocorrelation_graph(data: &[u8]) -> Vec<f64> {
+    let max_lag = 512;
+    let window = cmp::min(data.len(), 65536);
+    if window == 0 {
+        return vec![];
+    }
 
-    // We can copy directly if we assume linear mapping of file offset -> hilbert index
-    // because the Hilbert curve is a 1D -> 2D mapping where the index 0..N *is* the 1D list.
-    // So the texture data is literally just the file bytes in order,
-    // and the *rendering* (shader) or the *lookup* handles the curve.
-    // BUT, Deck.gl BitmapLayer takes a standard image buffer (row-major).
-    // If we want the image to *look* like a Hilbert curve, we must permute the bytes
-    // from "File Order" to "Image XY Order".
+    let sample = &data[0..window];
+    let mut graph = Vec::with_capacity(max_lag);
 
-    // However, calculating XY for every byte in WASM for 262k pixels is fast.
-    // Let's do the permutation so the BitmapLayer just renders a square
-    // and the pixels appear in Hilbert order.
+    for lag in 0..max_lag {
+        if lag == 0 {
+            graph.push(1.0);
+            continue;
+        }
+        if lag >= window {
+            graph.push(0.0);
+            continue;
+        }
+        let compare_len = window - lag;
+        let matches: usize = (0..compare_len).filter(|&i| sample[i] == sample[i + lag]).count();
+        graph.push(matches as f64 / compare_len as f64);
+    }
 
-    // Wait, use the HilbertCurve utility? No, that's for JS sync.
-    // We need Rust equivalent here.
+    // Normalize: re-center around average, scale peak to 1.0
+    let avg: f64 = if graph.len() > 1 {
+        graph[1..].iter().sum::<f64>() / (graph.len() - 1) as f64
+    } else {
+        0.0
+    };
+    let max_spike = graph[1..].iter().cloned().fold(0.0_f64, f64::max);
 
-    let order_val = 9; // 2^9 = 512
-    let n = 1 << order_val; // 512
-
-    for (i, &byte) in data.iter().take(HILBERT_PIXELS).enumerate() {
-        let (x, y) = d2xy(n, i);
-        // BitmapLayer expects standard row-major (y * width + x), likely bottom-up or top-down.
-        // Let's assume standard top-down: index = y * 512 + x
-        if y < n && x < n {
-            let matrix_idx = y * n + x;
-            matrix[matrix_idx] = byte;
+    if max_spike > avg {
+        for v in graph[1..].iter_mut() {
+            let normalized = (*v - avg) / (max_spike - avg);
+            *v = normalized.max(0.0);
         }
     }
 
+    graph
+}
+
+// ─── Hilbert Matrix ───────────────────────────────────────────────────────────
+
+const HILBERT_SIZE: usize = 512;
+const HILBERT_PIXELS: usize = HILBERT_SIZE * HILBERT_SIZE;
+
+fn generate_hilbert_matrix(data: &[u8]) -> Vec<u8> {
+    let mut matrix = vec![0u8; HILBERT_PIXELS];
+    let n = HILBERT_SIZE;
+
+    for (i, &byte) in data.iter().take(HILBERT_PIXELS).enumerate() {
+        let (x, y) = d2xy(n, i);
+        if y < n && x < n {
+            matrix[y * n + x] = byte;
+        }
+    }
     matrix
 }
 
-// Hilbert mapping implementation in Rust
 fn d2xy(n: usize, mut d: usize) -> (usize, usize) {
-    let mut rx;
-    let mut ry;
-    let mut s = 1;
-    let mut t = d;
     let mut x = 0;
     let mut y = 0;
+    let mut s = 1;
+    let mut t = d;
 
     while s < n {
-        rx = 1 & (t / 2);
-        ry = 1 & (t ^ rx);
+        let rx = 1 & (t / 2);
+        let ry = 1 & (t ^ rx);
         let (nx, ny) = rot(s, x, y, rx, ry);
         x = nx + s * rx;
         y = ny + s * ry;
         t /= 4;
         s *= 2;
     }
+    let _ = d; // suppress unused warning
     (x, y)
 }
 
@@ -231,195 +348,4 @@ fn rot(n: usize, mut x: usize, mut y: usize, rx: usize, ry: usize) -> (usize, us
         return (y, x);
     }
     (x, y)
-}
-
-fn detect_signatures(data: &[u8]) -> Vec<String> {
-    let mut found = Vec::new();
-    // Basic magic number checks
-    if data.starts_with(b"\x89PNG\r\n\x1a\n") {
-        found.push("PNG".to_string());
-    }
-    if data.starts_with(b"GIF8") {
-        found.push("GIF".to_string());
-    }
-    if data.starts_with(b"%PDF") {
-        found.push("PDF".to_string());
-    }
-    found
-}
-
-fn detect_autocorrelation(data: &[u8]) -> bool {
-    // "Vendor (Periodic): Detected via Autocorrelation (repeating headers)."
-    // Simple heuristic: check for repeating blocks or fixed stride patterns.
-    // We'll check for a repeating 4-byte pattern every N bytes (common in some raw formats).
-    // Or simpler: check if the first 16 bytes repeat at offset X.
-
-    if data.len() < 1024 {
-        return false;
-    }
-
-    let header_size = 32;
-    let search_limit = 4096.min(data.len());
-    let header = &data[..header_size];
-
-    // Look for this header repeating
-    for i in (header_size..search_limit).step_by(1) {
-        if &data[i..i + header_size.min(data.len() - i)] == header {
-            return true; // Found a repeat
-        }
-    }
-    false
-}
-
-#[derive(Serialize, Deserialize, Debug)]
-pub struct TlvNode {
-    pub name: String,
-    pub offset: usize,
-    pub tag_length: usize,
-    pub value_length: usize,
-    pub is_container: bool,
-    pub children: Vec<TlvNode>,
-}
-
-#[wasm_bindgen]
-pub fn parse_file_structure(data: &[u8]) -> Result<JsValue, JsValue> {
-    let mut nodes = Vec::new();
-    let mut cursor = 0;
-
-    while cursor < data.len() {
-        // --- ZLIB Cryptographic / Compression Check ---
-        if cursor + 2 <= data.len() {
-            let current_slice = &data[cursor..cursor + 2];
-            // 0x78 0x9C (Default), 0x78 0xDA (Best), 0x78 0x01 (No compression/fast)
-            if current_slice == &[0x78, 0x9C]
-                || current_slice == &[0x78, 0xDA]
-                || current_slice == &[0x78, 0x01]
-            {
-                let peek_end = (cursor + 256).min(data.len());
-                let entropy = shannon_entropy(&data[cursor..peek_end]);
-
-                // Entropy signature confirms ZLIB stream, skip TLV guessing
-                if entropy > 7.0 {
-                    let stream_len = data.len() - cursor;
-                    nodes.push(TlvNode {
-                        name: "ZLIB Compressed Stream".to_string(),
-                        offset: cursor,
-                        tag_length: 2,
-                        value_length: stream_len.saturating_sub(2),
-                        is_container: false,
-                        children: Vec::new(),
-                    });
-                    cursor += stream_len;
-                    continue;
-                }
-            }
-        }
-
-        if let Some(node) = parse_tlv_node(data, cursor, 0) {
-            cursor = node.offset + node.tag_length + node.value_length;
-            nodes.push(node);
-        } else {
-            cursor += 1;
-        }
-    }
-    Ok(serde_wasm_bindgen::to_value(&nodes).map_err(|e| e.to_string())?)
-}
-
-fn parse_tlv_node(data: &[u8], offset: usize, depth: usize) -> Option<TlvNode> {
-    if offset >= data.len() || depth > 64 {
-        return None;
-    }
-
-    let tag = data[offset];
-    let is_container = (tag & 0x20) == 0x20;
-    let mut current_offset = offset + 1;
-
-    if current_offset >= data.len() {
-        return None;
-    }
-
-    let length_byte = data[current_offset];
-    let mut value_length = 0;
-    let mut tag_len = 2;
-
-    if length_byte & 0x80 == 0 {
-        value_length = length_byte as usize;
-    } else {
-        let num_length_bytes = (length_byte & 0x7F) as usize;
-        if num_length_bytes > 4 || current_offset + num_length_bytes >= data.len() {
-            return None;
-        }
-
-        for i in 0..num_length_bytes {
-            value_length = (value_length << 8) | (data[current_offset + 1 + i] as usize);
-        }
-        tag_len += num_length_bytes;
-    }
-
-    current_offset += tag_len - 1;
-    if current_offset + value_length > data.len() {
-        return None;
-    }
-
-    let mut children = Vec::new();
-    if is_container && value_length > 0 {
-        let mut child_cursor = current_offset;
-        let end_limit = current_offset + value_length;
-
-        while child_cursor < end_limit {
-            if let Some(child) = parse_tlv_node(data, child_cursor, depth + 1) {
-                child_cursor = child.offset + child.tag_length + child.value_length;
-                children.push(child);
-            } else {
-                break;
-            }
-        }
-
-        // STRICT BOUNDS CHECKING
-        // If the parsed children do not mathematically sum to the declared container length,
-        // it is a false positive guessing on noise. Abort this ghost branch.
-        if child_cursor != end_limit {
-            return None;
-        }
-    }
-
-    let mut name = String::new();
-
-    if tag == 0x30 {
-        // X.509 Certificate Heuristic: Large Sequence whose first child is also a Sequence
-        if !children.is_empty() && children[0].name.contains("Sequence") && value_length > 100 {
-            name = "Suspected X.509 Cryptographic Certificate".to_string();
-        } else {
-            name = "ETSI_Sequence".to_string();
-        }
-    } else if tag == 0x06 {
-        // PKCS#7 Crypto OID Detection
-        if value_length == 9 && current_offset + 9 <= data.len() {
-            let oid_bytes = &data[current_offset..current_offset + 9];
-            if oid_bytes == &[0x2A, 0x86, 0x48, 0x86, 0xF7, 0x0D, 0x01, 0x07, 0x02] {
-                name = "PKCS#7 SignedData OID".to_string();
-            } else if oid_bytes == &[0x2A, 0x86, 0x48, 0x86, 0xF7, 0x0D, 0x01, 0x07, 0x03] {
-                name = "PKCS#7 EnvelopedData OID".to_string();
-            } else {
-                name = "ObjectIdentifier".to_string();
-            }
-        } else {
-            name = "ObjectIdentifier".to_string();
-        }
-    } else if tag == 0x02 {
-        name = "Integer".to_string();
-    } else if tag == 0x04 {
-        name = "OctetString".to_string();
-    } else {
-        name = format!("Tag_0x{:02X}", tag);
-    };
-
-    Some(TlvNode {
-        name,
-        offset,
-        tag_length: tag_len,
-        value_length,
-        is_container,
-        children,
-    })
 }

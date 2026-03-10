@@ -1,7 +1,7 @@
 // src/workers/analysisWorker.ts
 /// <reference lib="webworker" />
 
-import initWasm, { analyze, parse_file_structure } from '../../src-wasm/pkg/cifad_wasm';
+import initWasm, { analyze } from '../../src-wasm/pkg/cifad_wasm';
 
 // Ensure WASM is initialized only once
 let wasmInitialized = false;
@@ -17,26 +17,13 @@ self.onmessage = async (e: MessageEvent) => {
 
         const bytes = new Uint8Array(buffer);
 
-        // 1. Run Physics Engine (Entropy, Hilbert, Autocorrelation)
-        const rawResult = analyze(bytes);
+        // The unified `analyze()` now returns entropy, hilbert, autocorrelation,
+        // AND parsed_structures (with cryptographic signatures) in one call.
+        const result = analyze(bytes);
 
-        // 2. Run Logic Engine (Recursive TLV Parser)
-        let parsed_structures: any[] = [];
-        try {
-            if (parse_file_structure) {
-                parsed_structures = parse_file_structure(bytes);
-            }
-        } catch (parserError) {
-            console.warn("Worker TLV Parser warning:", parserError);
-        }
-
-        // 3. Send combined results back to main thread
         self.postMessage({
             success: true,
-            result: {
-                ...rawResult,
-                parsed_structures
-            }
+            result
         });
 
     } catch (err: any) {

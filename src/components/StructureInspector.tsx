@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { Terminal, Copy, Check, Activity, Database, Clock, Hash } from 'lucide-react';
+import { Terminal, Copy, Check, Activity, Database, Clock, Hash, ShieldAlert } from 'lucide-react';
 import { TlvNode } from '../types/analysis';
 import { getTagInfo } from '../utils/tag_dictionary';
 
@@ -114,6 +114,18 @@ const StructureInspector: React.FC<Props> = ({ node, fileData, selectionRange, o
                     </div>
                 </div>
             </div>
+
+            {/* CRYPTOGRAPHIC SIGNATURE ALERT — Injected from Rust engine */}
+            {node?.signature && (
+                <div style={{ background: 'rgba(255, 0, 85, 0.05)', borderLeft: '2px solid #ff0055', padding: '10px 12px', borderRadius: '2px' }}>
+                    <div style={{ fontSize: '0.65rem', color: '#ff0055', letterSpacing: '1px', marginBottom: '4px', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                        <ShieldAlert size={12} /> CRYPTOGRAPHIC SIGNATURE
+                    </div>
+                    <div style={{ fontSize: '0.75rem', color: '#eee', lineHeight: '1.5' }}>
+                        {node.signature}
+                    </div>
+                </div>
+            )}
 
             <div style={{ background: 'rgba(0, 255, 157, 0.05)', borderLeft: '2px solid #00ff9d', padding: '10px 12px' }}>
                 <div style={{ fontSize: '0.65rem', color: '#00ff9d', letterSpacing: '1px', marginBottom: '4px', display: 'flex', alignItems: 'center', gap: '6px' }}><Activity size={12} /> CONCLUSION</div>

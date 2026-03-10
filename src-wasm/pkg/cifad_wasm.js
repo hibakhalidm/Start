@@ -14,20 +14,6 @@ export function analyze(data) {
     return takeFromExternrefTable0(ret[0]);
 }
 
-/**
- * @param {Uint8Array} data
- * @returns {any}
- */
-export function parse_file_structure(data) {
-    const ptr0 = passArray8ToWasm0(data, wasm.__wbindgen_malloc);
-    const len0 = WASM_VECTOR_LEN;
-    const ret = wasm.parse_file_structure(ptr0, len0);
-    if (ret[2]) {
-        throw takeFromExternrefTable0(ret[1]);
-    }
-    return takeFromExternrefTable0(ret[0]);
-}
-
 function __wbg_get_imports() {
     const import0 = {
         __proto__: null,
@@ -45,20 +31,12 @@ function __wbg_get_imports() {
         __wbg___wbindgen_throw_be289d5034ed271b: function(arg0, arg1) {
             throw new Error(getStringFromWasm0(arg0, arg1));
         },
-        __wbg_from_bddd64e7d5ff6941: function(arg0) {
-            const ret = Array.from(arg0);
-            return ret;
-        },
         __wbg_new_361308b2356cecd0: function() {
             const ret = new Object();
             return ret;
         },
         __wbg_new_3eb36ae241fe6f44: function() {
             const ret = new Array();
-            return ret;
-        },
-        __wbg_new_dd2b680c8bf6ae29: function(arg0) {
-            const ret = new Uint8Array(arg0);
             return ret;
         },
         __wbg_set_3f1d0b984ed272ed: function(arg0, arg1, arg2) {
@@ -73,16 +51,11 @@ function __wbg_get_imports() {
             return ret;
         },
         __wbindgen_cast_0000000000000002: function(arg0, arg1) {
-            // Cast intrinsic for `Ref(Slice(U8)) -> NamedExternref("Uint8Array")`.
-            const ret = getArrayU8FromWasm0(arg0, arg1);
-            return ret;
-        },
-        __wbindgen_cast_0000000000000003: function(arg0, arg1) {
             // Cast intrinsic for `Ref(String) -> Externref`.
             const ret = getStringFromWasm0(arg0, arg1);
             return ret;
         },
-        __wbindgen_cast_0000000000000004: function(arg0) {
+        __wbindgen_cast_0000000000000003: function(arg0) {
             // Cast intrinsic for `U64 -> Externref`.
             const ret = BigInt.asUintN(64, arg0);
             return ret;
@@ -101,11 +74,6 @@ function __wbg_get_imports() {
         __proto__: null,
         "./cifad_wasm_bg.js": import0,
     };
-}
-
-function getArrayU8FromWasm0(ptr, len) {
-    ptr = ptr >>> 0;
-    return getUint8ArrayMemory0().subarray(ptr / 1, ptr / 1 + len);
 }
 
 let cachedDataViewMemory0 = null;
