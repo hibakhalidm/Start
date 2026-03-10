@@ -215,8 +215,8 @@ function App() {
                         <div style={{ width: '100px', height: '100px', border: '2px dashed #333', borderRadius: '20px', display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: '20px', animation: 'pulse-border 2s infinite' }}>
                             <Download size={40} color="#666" />
                         </div>
-                        <h2 style={{ color: '#eee', marginBottom: '8px', letterSpacing: '1px' }}>DROP FILE TO BEGIN</h2>
-                        <p style={{ fontSize: '0.9rem', color: '#666' }}>Supports .pcap, .cr, and Raw Binaries</p>
+                        <h2 style={{ color: '#eee', marginBottom: '8px' }}>INITIALIZE ANALYSIS</h2>
+                        <p style={{ fontSize: '0.9rem' }}>Drag & Drop Signal File or Select from Toolbar</p>
                     </div>
                 ) : (
                     <PanelGroup direction="horizontal">
