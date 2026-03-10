@@ -335,7 +335,13 @@ function App() {
                                         {showPipeline && (
                                             <div style={{ flex: 1, borderTop: showInspector ? '1px solid #333' : 'none', paddingTop: showInspector ? '15px' : '0' }}>
                                                 <div style={{ fontSize: '10px', color: '#666', marginBottom: '10px' }}>TRANSFORMATION PIPELINE</div>
-                                                <TransformationPipeline selectedBytes={selectedBytes} />
+                                                <TransformationPipeline
+                                                    selectedBytes={selectedBytes}
+                                                    fileData={fileData}
+                                                    fileObj={fileObj}
+                                                    analysisResult={result}
+                                                    detectedStandard={standard}
+                                                />
                                             </div>
                                         )}
                                     </div>
