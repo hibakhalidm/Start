@@ -1,5 +1,6 @@
 import React from 'react';
 import { HilbertCurve } from '../utils/hilbert';
+import type { SearchMatch } from '../types/analysis';
 interface RadarProps {
     matrix: Uint8Array;
     entropyMap: number[];
@@ -8,6 +9,8 @@ interface RadarProps {
         start: number;
         end: number;
     } | null;
+    searchMatches?: SearchMatch[];
+    activeMatchOffset?: number | null;
     hilbert: HilbertCurve;
     onJump: (offset: number) => void;
     onSelectRange: (start: number, end: number) => void;

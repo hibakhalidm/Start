@@ -13,7 +13,8 @@ import AutocorrelationGraph from './components/AutocorrelationGraph';
 import FileTree from './components/FileTree';
 import StructureInspector from './components/StructureInspector';
 import TransformationPipeline from './components/TransformationPipeline';
-import { TlvNode } from './types/analysis';
+import SearchBar from './components/SearchBar';
+import { TlvNode, SearchMatch } from './types/analysis';
 import './App.css';
 
 
@@ -40,6 +41,10 @@ function App() {
     const [hexStride, setHexStride] = useState(16);
     const [hilbert] = useState(() => new HilbertCurve(9));
     const hexViewRef = useRef<HexViewRef>(null);
+
+    // --- SEARCH STATE ---
+    const [searchMatches, setSearchMatches] = useState<SearchMatch[]>([]);
+    const [activeMatchOffset, setActiveMatchOffset] = useState<number | null>(null);
 
     const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
         if (e.target.files && e.target.files[0]) {
@@ -88,6 +93,7 @@ function App() {
     const handleJumpTo = (offset: number, length: number = 16) => {
         setSelectionRange({ start: offset, end: offset + length });
         hexViewRef.current?.scrollToOffset(offset);
+        setActiveMatchOffset(offset);
     };
 
     const handleScrollUpdate = (offset: number) => {
@@ -117,8 +123,14 @@ function App() {
     };
 
     useEffect(() => {
-        // Pass BOTH parsed structures AND raw bytes to detect signatures (PCAP, CR)
-        setStandard(detectStandard(result?.parsed_structures, fileData, result?.entropy_map));
+        // Pass parsed structures, raw bytes, and WASM-detected protocol
+        setStandard(detectStandard(
+            result?.parsed_structures,
+            fileData,
+            result?.entropy_map,
+            result?.detected_protocol,
+            result?.protocol_confidence
+        ));
     }, [result, fileData]);
 
     const selectedBytes = useMemo(() => {
@@ -247,6 +259,13 @@ function App() {
                         {/* CENTER */}
                         <Panel minSize={30}>
                             <PanelGroup direction="vertical">
+                                {/* SEARCH BAR — collapsible, above Radar */}
+                                <SearchBar
+                                    fileData={fileData}
+                                    onMatchesChange={(m) => { setSearchMatches(m); setActiveMatchOffset(null); }}
+                                    onJump={(offset, length) => handleJumpTo(offset, length)}
+                                />
+
                                 {showHilbert && (
                                     <>
                                         <Panel defaultSize={40} minSize={20}>
@@ -258,6 +277,8 @@ function App() {
                                                         entropyMap={result.entropy_map}
                                                         highlightOffset={hoveredOffset}
                                                         selectionRange={selectionRange}
+                                                        searchMatches={searchMatches}
+                                                        activeMatchOffset={activeMatchOffset}
                                                         hilbert={hilbert}
                                                         onJump={(off) => handleJumpTo(off)}
                                                         onSelectRange={(start, end) => setSelectionRange({ start, end })}

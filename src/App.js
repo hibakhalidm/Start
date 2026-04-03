@@ -13,6 +13,7 @@ import AutocorrelationGraph from './components/AutocorrelationGraph';
 import FileTree from './components/FileTree';
 import StructureInspector from './components/StructureInspector';
 import TransformationPipeline from './components/TransformationPipeline';
+import SearchBar from './components/SearchBar';
 import './App.css';
 function App() {
     const { isReady, analyzeFile, result } = useAnalysisEngine();
@@ -33,6 +34,9 @@ function App() {
     const [hexStride, setHexStride] = useState(16);
     const [hilbert] = useState(() => new HilbertCurve(9));
     const hexViewRef = useRef(null);
+    // --- SEARCH STATE ---
+    const [searchMatches, setSearchMatches] = useState([]);
+    const [activeMatchOffset, setActiveMatchOffset] = useState(null);
     const handleFileChange = async (e) => {
         if (e.target.files && e.target.files[0]) {
             const file = e.target.files[0];
@@ -73,6 +77,7 @@ function App() {
     const handleJumpTo = (offset, length = 16) => {
         setSelectionRange({ start: offset, end: offset + length });
         hexViewRef.current?.scrollToOffset(offset);
+        setActiveMatchOffset(offset);
     };
     const handleScrollUpdate = (offset) => {
         setCurrentScrollOffset(offset);
@@ -95,8 +100,8 @@ function App() {
         }, 50);
     };
     useEffect(() => {
-        // Pass BOTH parsed structures AND raw bytes to detect signatures (PCAP, CR)
-        setStandard(detectStandard(result?.parsed_structures, fileData, result?.entropy_map));
+        // Pass parsed structures, raw bytes, and WASM-detected protocol
+        setStandard(detectStandard(result?.parsed_structures, fileData, result?.entropy_map, result?.detected_protocol, result?.protocol_confidence));
     }, [result, fileData]);
     const selectedBytes = useMemo(() => {
         if (!fileData || !selectionRange)
@@ -153,7 +158,7 @@ function App() {
                                     display: 'flex', alignItems: 'center', gap: '6px'
                                 }, children: [_jsx(Download, { size: 14 }), " EXPORT"] })] })] }), _jsx("div", { style: { flex: 1, minHeight: 0, position: 'relative' }, children: !fileData ? (
                 // 1. PREMIUM EMPTY STATE
-                _jsxs("div", { style: { height: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', color: '#444' }, children: [_jsx("div", { style: { width: '100px', height: '100px', border: '2px dashed #333', borderRadius: '20px', display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: '20px', animation: 'pulse-border 2s infinite' }, children: _jsx(Download, { size: 40, color: "#666" }) }), _jsx("h2", { style: { color: '#eee', marginBottom: '8px' }, children: "INITIALIZE ANALYSIS" }), _jsx("p", { style: { fontSize: '0.9rem' }, children: "Drag & Drop Signal File or Select from Toolbar" })] })) : (_jsxs(PanelGroup, { direction: "horizontal", children: [_jsx(Panel, { defaultSize: 20, minSize: 10, className: "bg-panel cyber-border-right", children: _jsx(FileTree, { file: fileObj, fileSize: fileData?.length, structures: result?.parsed_structures, standard: standard, selectionOffset: selectionRange?.start ?? null, onSelectRange: (s, e) => handleJumpTo(s, e - s), onHoverRange: setHoverRange, onNodeSelect: (node) => setSelectedNode(node) }) }), _jsx(PanelResizeHandle, { className: "resize-handle" }), _jsx(Panel, { minSize: 30, children: _jsxs(PanelGroup, { direction: "vertical", children: [showHilbert && (_jsxs(_Fragment, { children: [_jsx(Panel, { defaultSize: 40, minSize: 20, children: _jsxs("div", { style: { height: '100%', position: 'relative' }, children: [_jsx("div", { className: "panel-header", style: { position: 'absolute', top: 0, left: 0, zIndex: 10 }, children: "GLOBAL SIGNAL" }), isReady && result ? (_jsx(Radar, { matrix: result.hilbert_matrix, entropyMap: result.entropy_map, highlightOffset: hoveredOffset, selectionRange: selectionRange, hilbert: hilbert, onJump: (off) => handleJumpTo(off), onSelectRange: (start, end) => setSelectionRange({ start, end }), onHover: handleRadarHover })) : _jsx("div", { style: { height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#555' }, children: "AWAITING ANALYSIS..." })] }) }), _jsx(PanelResizeHandle, { className: "resize-handle-horizontal" })] })), _jsx(Panel, { defaultSize: 15, minSize: 10, collapsible: true, children: _jsx(AutocorrelationGraph, { data: result?.autocorrelation_graph || [], onJump: (offset) => {
+                _jsxs("div", { style: { height: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', color: '#444' }, children: [_jsx("div", { style: { width: '100px', height: '100px', border: '2px dashed #333', borderRadius: '20px', display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: '20px', animation: 'pulse-border 2s infinite' }, children: _jsx(Download, { size: 40, color: "#666" }) }), _jsx("h2", { style: { color: '#eee', marginBottom: '8px' }, children: "INITIALIZE ANALYSIS" }), _jsx("p", { style: { fontSize: '0.9rem' }, children: "Drag & Drop Signal File or Select from Toolbar" })] })) : (_jsxs(PanelGroup, { direction: "horizontal", children: [_jsx(Panel, { defaultSize: 20, minSize: 10, className: "bg-panel cyber-border-right", children: _jsx(FileTree, { file: fileObj, fileSize: fileData?.length, structures: result?.parsed_structures, standard: standard, selectionOffset: selectionRange?.start ?? null, onSelectRange: (s, e) => handleJumpTo(s, e - s), onHoverRange: setHoverRange, onNodeSelect: (node) => setSelectedNode(node) }) }), _jsx(PanelResizeHandle, { className: "resize-handle" }), _jsx(Panel, { minSize: 30, children: _jsxs(PanelGroup, { direction: "vertical", children: [_jsx(SearchBar, { fileData: fileData, onMatchesChange: (m) => { setSearchMatches(m); setActiveMatchOffset(null); }, onJump: (offset, length) => handleJumpTo(offset, length) }), showHilbert && (_jsxs(_Fragment, { children: [_jsx(Panel, { defaultSize: 40, minSize: 20, children: _jsxs("div", { style: { height: '100%', position: 'relative' }, children: [_jsx("div", { className: "panel-header", style: { position: 'absolute', top: 0, left: 0, zIndex: 10 }, children: "GLOBAL SIGNAL" }), isReady && result ? (_jsx(Radar, { matrix: result.hilbert_matrix, entropyMap: result.entropy_map, highlightOffset: hoveredOffset, selectionRange: selectionRange, searchMatches: searchMatches, activeMatchOffset: activeMatchOffset, hilbert: hilbert, onJump: (off) => handleJumpTo(off), onSelectRange: (start, end) => setSelectionRange({ start, end }), onHover: handleRadarHover })) : _jsx("div", { style: { height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#555' }, children: "AWAITING ANALYSIS..." })] }) }), _jsx(PanelResizeHandle, { className: "resize-handle-horizontal" })] })), _jsx(Panel, { defaultSize: 15, minSize: 10, collapsible: true, children: _jsx(AutocorrelationGraph, { data: result?.autocorrelation_graph || [], onJump: (offset) => {
                                                 handleJumpTo(offset);
                                                 setSelectionRange({ start: offset, end: offset + 16 });
                                             } }) }), _jsx(PanelResizeHandle, { className: "resize-handle-horizontal" }), _jsx(Panel, { minSize: 20, children: _jsxs("div", { style: { display: 'flex', height: '100%' }, children: [_jsxs("div", { style: { flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column' }, children: [_jsx("div", { className: "panel-header", children: "RAW MATRIX" }), _jsx("div", { style: { flex: 1 }, children: fileData && (_jsx(HexView, { ref: hexViewRef, data: fileData, stride: hexStride, selectionRange: selectionRange, hoverRange: hoverRange, onSelect: (s, e) => { setSelectionRange({ start: s, end: e }); }, onScroll: handleScrollUpdate, onEditByte: handleEditByte })) })] }), showHeatmap && (_jsx("div", { style: { width: '24px', borderLeft: '1px solid #333' }, children: result && (_jsx(SemanticScrollbar, { entropyMap: result.entropy_map, currentPercent: currentViewPercent, onScroll: (p) => handleJumpTo(Math.floor(fileData.length * p)) })) }))] }) })] }) }), (showInspector || showPipeline) && (_jsxs(_Fragment, { children: [_jsx(PanelResizeHandle, { className: "resize-handle" }), _jsxs(Panel, { defaultSize: 25, minSize: 20, className: "bg-panel cyber-border-left", children: [_jsx("div", { className: "panel-header", children: "DETAILS" }), _jsxs("div", { style: { padding: '15px', display: 'flex', flexDirection: 'column', height: 'calc(100% - 30px)', gap: '15px', overflowY: 'auto' }, children: [showInspector && (_jsx("div", { style: { flexShrink: 0 }, children: _jsx(StructureInspector, { node: activeInspectorNode, fileData: fileData, selectionRange: selectionRange, onFocus: (s, e) => { if (s !== undefined && e !== undefined)

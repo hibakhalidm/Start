@@ -1,0 +1,8 @@
+﻿src-wasm/pkg/cifad_wasm.d.ts
+src-wasm/pkg/cifad_wasm.js
+src-wasm/pkg/cifad_wasm_bg.wasm
+src-wasm/pkg/cifad_wasm_bg.wasm.d.ts
+src-wasm/src/lib.rs
+src/components/StructureInspector.tsx
+src/types/analysis.ts
+src/workers/analysisWorker.ts

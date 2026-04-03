@@ -1,7 +1,7 @@
 import { jsx as _jsx, jsxs as _jsxs } from "react/jsx-runtime";
 import { useRef, useEffect, useState } from 'react';
 import { ZoomIn, ZoomOut, Maximize } from 'lucide-react';
-const Radar = ({ matrix, entropyMap, highlightOffset, selectionRange, hilbert, onJump, onSelectRange, onHover }) => {
+const Radar = ({ matrix, entropyMap, highlightOffset, selectionRange, searchMatches, activeMatchOffset, hilbert, onJump, onSelectRange, onHover }) => {
     const canvasRef = useRef(null);
     const uiCanvasRef = useRef(null); // NEW UI CANVAS
     const containerRef = useRef(null);
@@ -46,7 +46,7 @@ const Radar = ({ matrix, entropyMap, highlightOffset, selectionRange, hilbert, o
             catch (e) { }
         }
         ctx.putImageData(imgData, 0, 0);
-        // Draw Selection Overlay
+        // Draw Selection Overlay (cyan)
         if (selectionRange) {
             ctx.fillStyle = 'rgba(0, 255, 255, 0.4)';
             const maxSel = Math.min(selectionRange.end, maxLen);
@@ -58,7 +58,22 @@ const Radar = ({ matrix, entropyMap, highlightOffset, selectionRange, hilbert, o
                 catch (e) { }
             }
         }
-    }, [matrix, entropyMap, selectionRange, hilbert]); // Notice hoverPos is REMOVED!
+        // Draw Search Match Overlay (magenta)
+        if (searchMatches && searchMatches.length > 0) {
+            for (const match of searchMatches) {
+                const isActive = activeMatchOffset !== undefined && activeMatchOffset !== null && match.offset === activeMatchOffset;
+                ctx.fillStyle = isActive ? 'rgba(255, 0, 204, 1.0)' : 'rgba(255, 0, 204, 0.6)';
+                const matchEnd = Math.min(match.offset + match.length, maxLen);
+                for (let i = match.offset; i < matchEnd; i++) {
+                    try {
+                        const [x, y] = hilbert.offsetToXY(i);
+                        ctx.fillRect(x, y, isActive ? 2 : 1, isActive ? 2 : 1);
+                    }
+                    catch (e) { }
+                }
+            }
+        }
+    }, [matrix, entropyMap, selectionRange, searchMatches, activeMatchOffset, hilbert]);
     // NEW: Render the lightweight crosshair only on the transparent UI canvas
     useEffect(() => {
         const canvas = uiCanvasRef.current;
