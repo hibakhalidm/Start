@@ -1,0 +1,4 @@
+error: failed to create directory `c:\Users\USER\Documents\INSA Projects\CIFAT\src-wasm\target_build \release`
+
+Caused by:
+  The system cannot find the path specified. (os error 3)

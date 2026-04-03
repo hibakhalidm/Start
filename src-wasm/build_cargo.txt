@@ -1,0 +1,2 @@
+   Compiling cifad-wasm v0.1.0 (C:\Users\USER\Documents\INSA Projects\CIFAT\src-wasm)
+    Finished `release` profile [optimized] target(s) in 19.22s
