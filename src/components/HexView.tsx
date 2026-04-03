@@ -16,32 +16,58 @@ interface HexViewProps {
     onEditByte?: (offset: number, newByte: number) => void;
 }
 
-const HexView = forwardRef<HexViewRef, HexViewProps>(({ data, selectionRange, hoverRange, stride = 16, onSelect, onScroll, onEditByte }, ref) => {
-    const listRef = useRef<List>(null);
+/** Context shape passed as itemData to each virtualised row */
+interface HexViewRowContext {
+    buffer: Uint8Array;
+    selectionRange: { start: number; end: number } | null;
+    hoverRange: { start: number; end: number } | null | undefined;
+    stride: number;
+    editOffset: number | null;
+    editValue: string;
+    onSelect: (start: number, end: number) => void;
+}
+
+const HexView = forwardRef<HexViewRef, HexViewProps>(({
+    data, selectionRange, hoverRange, stride = 16, onSelect, onScroll, onEditByte
+}, ref) => {
+    const listRef        = useRef<List>(null);
+    const containerRef   = useRef<HTMLDivElement>(null);
+    const inputRef       = useRef<HTMLInputElement>(null);
 
     const [editOffset, setEditOffset] = useState<number | null>(null);
-    const [editValue, setEditValue] = useState<string>('');
-    const inputRef = useRef<HTMLInputElement>(null);
+    const [editValue,  setEditValue]  = useState<string>('');
+    // ResizeObserver-driven height — starts at 600 as a safe default
+    const [containerHeight, setContainerHeight] = useState<number>(600);
 
+    // ── ResizeObserver: track the panel height in real time ──────────────────
+    useEffect(() => {
+        const el = containerRef.current;
+        if (!el) return;
+        const ro = new ResizeObserver((entries) => {
+            const h = entries[0]?.contentRect.height;
+            if (h && h > 0) setContainerHeight(h);
+        });
+        ro.observe(el);
+        return () => ro.disconnect();
+    }, []);
+
+    // ── imperative scroll API ─────────────────────────────────────────────────
     React.useImperativeHandle(ref, (): HexViewRef => ({
-        scrollToItem: (index: number, align?: Align) => {
-            if (listRef.current) listRef.current.scrollToItem(index, align);
-        },
-        scrollToOffset: (offset: number) => {
-            if (listRef.current) listRef.current.scrollToItem(Math.floor(offset / 16), "center");
-        }
+        scrollToItem: (index, align) => listRef.current?.scrollToItem(index, align),
+        scrollToOffset: (offset) => listRef.current?.scrollToItem(Math.floor(offset / stride), 'center'),
     }));
 
+    // ── focus the inline editor whenever editOffset changes ─────────────────
     useEffect(() => {
-        if (editOffset !== null && inputRef.current) {
-            inputRef.current.focus();
-            inputRef.current.select();
+        if (editOffset !== null) {
+            inputRef.current?.focus();
+            inputRef.current?.select();
         }
     }, [editOffset]);
 
     if (!data || data.length === 0) return null;
 
-    const rowCount = Math.ceil(data.length / 16);
+    const rowCount = Math.ceil(data.length / stride);
 
     const handleCommitEdit = () => {
         if (editOffset !== null && onEditByte) {
@@ -54,46 +80,53 @@ const HexView = forwardRef<HexViewRef, HexViewProps>(({ data, selectionRange, ho
     };
 
     const handleKeyDown = (e: React.KeyboardEvent) => {
-        if (e.key === 'Enter') handleCommitEdit();
+        if (e.key === 'Enter')  handleCommitEdit();
         if (e.key === 'Escape') setEditOffset(null);
     };
 
-    // CORE FIX: Bundle all state into a context object so react-window knows when to redraw rows
-    const contextData = useMemo(() => ({
+    // ── Bundle all row-rendering state into a stable context object ───────────
+    // This is the key pattern for react-window: without itemData, rows don't
+    // re-render when selection/edit state changes.
+    const contextData = useMemo<HexViewRowContext>(() => ({
         buffer: data,
         selectionRange,
         hoverRange,
         stride,
         editOffset,
         editValue,
-        onSelect
+        onSelect,
     }), [data, selectionRange, hoverRange, stride, editOffset, editValue, onSelect]);
 
-    // Update Row to destructure from 'data.context' instead of global scope
-    const Row = ({ index, style, data: context }: { index: number, style: React.CSSProperties, data: any }) => {
-        const { buffer, selectionRange, editOffset, editValue, stride, hoverRange, onSelect } = context;
-
+    // ── Virtualised row renderer ──────────────────────────────────────────────
+    const Row = ({ index, style, data: ctx }: {
+        index: number;
+        style: React.CSSProperties;
+        data: HexViewRowContext;
+    }) => {
+        const { buffer, selectionRange, editOffset, editValue, stride, hoverRange, onSelect } = ctx;
         const offset = index * stride;
-        const chunk = buffer.slice(offset, offset + stride);
+        const chunk  = buffer.slice(offset, offset + stride);
 
-        // Build the ASCII string securely from the freshly updated buffer
         let asciiStr = '';
         for (let i = 0; i < chunk.length; i++) {
-            const charCode = chunk[i];
-            if (charCode >= 32 && charCode <= 126) asciiStr += String.fromCharCode(charCode);
-            else asciiStr += '.';
+            const c = chunk[i];
+            asciiStr += (c >= 32 && c <= 126) ? String.fromCharCode(c) : '.';
         }
 
         return (
             <div style={{ ...style, display: 'flex', fontFamily: 'monospace', fontSize: '0.85rem', color: '#aaa', padding: '0 10px', alignItems: 'center' }}>
+                {/* Offset column */}
                 <div style={{ width: '80px', color: '#555', userSelect: 'none' }}>
                     {offset.toString(16).padStart(8, '0').toUpperCase()}
                 </div>
 
+                {/* Hex byte columns */}
                 <div style={{ display: 'flex', gap: '6px', flex: 1 }}>
-                    {Array.from(chunk).map((byte: any, i: number) => {
+                    {Array.from(chunk).map((byte, i) => {
                         const byteOffset = offset + i;
-                        const isSelected = selectionRange && byteOffset >= selectionRange.start && byteOffset < selectionRange.end;
+                        const isSelected = selectionRange
+                            && byteOffset >= selectionRange.start
+                            && byteOffset <  selectionRange.end;
                         const isEditing = editOffset === byteOffset;
 
                         return (
@@ -105,23 +138,27 @@ const HexView = forwardRef<HexViewRef, HexViewProps>(({ data, selectionRange, ho
                                 }}
                                 onClick={() => onSelect && onSelect(byteOffset, byteOffset + 1)}
                                 style={{
-                                    width: '20px', textAlign: 'center', cursor: 'pointer', borderRadius: '2px',
+                                    width: '20px', textAlign: 'center', cursor: 'pointer',
+                                    borderRadius: '2px',
                                     background: isSelected ? 'rgba(0, 240, 255, 0.2)' : 'transparent',
                                     color: isSelected ? '#fff' : (byte === 0 ? '#444' : 'var(--accent-cyan)'),
-                                    position: 'relative'
+                                    position: 'relative',
                                 }}
                             >
                                 {isEditing ? (
                                     <input
                                         ref={inputRef}
                                         value={editValue}
-                                        onChange={(e) => setEditValue(e.target.value.replace(/[^0-9A-Fa-f]/gi, '').slice(0, 2))}
+                                        onChange={e => setEditValue(e.target.value.replace(/[^0-9A-Fa-f]/gi, '').slice(0, 2))}
                                         onBlur={handleCommitEdit}
                                         onKeyDown={handleKeyDown}
                                         style={{
-                                            position: 'absolute', top: -2, left: -2, width: '24px', height: '20px',
-                                            background: '#fff', color: '#000', border: 'none', outline: 'none',
-                                            textAlign: 'center', fontSize: '0.85rem', fontWeight: 'bold', zIndex: 10
+                                            position: 'absolute', top: -2, left: -2,
+                                            width: '24px', height: '20px',
+                                            background: '#fff', color: '#000',
+                                            border: 'none', outline: 'none',
+                                            textAlign: 'center', fontSize: '0.85rem',
+                                            fontWeight: 'bold', zIndex: 10,
                                         }}
                                     />
                                 ) : (
@@ -132,6 +169,7 @@ const HexView = forwardRef<HexViewRef, HexViewProps>(({ data, selectionRange, ho
                     })}
                 </div>
 
+                {/* ASCII sidebar */}
                 <div style={{ width: '140px', color: '#888', letterSpacing: '1px', borderLeft: '1px solid #222', paddingLeft: '10px' }}>
                     {asciiStr}
                 </div>
@@ -140,15 +178,16 @@ const HexView = forwardRef<HexViewRef, HexViewProps>(({ data, selectionRange, ho
     };
 
     return (
-        <div style={{ flex: 1, height: '100%', background: '#0a0a0c', overflow: 'hidden' }}>
+        <div ref={containerRef} style={{ flex: 1, height: '100%', background: '#0a0a0c', overflow: 'hidden' }}>
             <List
                 ref={listRef}
-                height={1000}
+                height={containerHeight}       // ← dynamic, driven by ResizeObserver
                 itemCount={rowCount}
                 itemSize={24}
                 width="100%"
                 style={{ overflowX: 'hidden' }}
-                itemData={contextData} // <--- The Fix
+                itemData={contextData}
+                onScroll={onScroll ? ({ scrollOffset }) => onScroll(scrollOffset) : undefined}
             >
                 {Row}
             </List>

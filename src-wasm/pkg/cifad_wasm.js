@@ -1,6 +1,8 @@
 /* @ts-self-types="./cifad_wasm.d.ts" */
 
 /**
+ * Run the full physics + crypto analysis engine on the provided byte buffer.
+ * Returns an AnalysisResult JSON value.
  * @param {Uint8Array} data
  * @returns {any}
  */
@@ -15,6 +17,23 @@ export function analyze(data) {
 }
 
 /**
+ * Inspect the parsed node tree for the highest-confidence ETSI/3GPP protocol.
+ * Returns { detected_protocol: string | null, protocol_confidence: string | null }
+ * @param {Uint8Array} data
+ * @returns {any}
+ */
+export function detect_protocol(data) {
+    const ptr0 = passArray8ToWasm0(data, wasm.__wbindgen_malloc);
+    const len0 = WASM_VECTOR_LEN;
+    const ret = wasm.detect_protocol(ptr0, len0);
+    if (ret[2]) {
+        throw takeFromExternrefTable0(ret[1]);
+    }
+    return takeFromExternrefTable0(ret[0]);
+}
+
+/**
+ * Run the recursive TLV/ETSI parser and return the full node tree + protocol verdict.
  * @param {Uint8Array} data
  * @returns {any}
  */

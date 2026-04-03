@@ -1,8 +1,21 @@
 /* tslint:disable */
 /* eslint-disable */
 
+/**
+ * Run the full physics + crypto analysis engine on the provided byte buffer.
+ * Returns an AnalysisResult JSON value.
+ */
 export function analyze(data: Uint8Array): any;
 
+/**
+ * Inspect the parsed node tree for the highest-confidence ETSI/3GPP protocol.
+ * Returns { detected_protocol: string | null, protocol_confidence: string | null }
+ */
+export function detect_protocol(data: Uint8Array): any;
+
+/**
+ * Run the recursive TLV/ETSI parser and return the full node tree + protocol verdict.
+ */
 export function parse_file_structure(data: Uint8Array): any;
 
 export type InitInput = RequestInfo | URL | Response | BufferSource | WebAssembly.Module;
@@ -10,6 +23,7 @@ export type InitInput = RequestInfo | URL | Response | BufferSource | WebAssembl
 export interface InitOutput {
     readonly memory: WebAssembly.Memory;
     readonly analyze: (a: number, b: number) => [number, number, number];
+    readonly detect_protocol: (a: number, b: number) => [number, number, number];
     readonly parse_file_structure: (a: number, b: number) => [number, number, number];
     readonly __wbindgen_malloc: (a: number, b: number) => number;
     readonly __wbindgen_realloc: (a: number, b: number, c: number, d: number) => number;

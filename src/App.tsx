@@ -123,8 +123,14 @@ function App() {
     };
 
     useEffect(() => {
-        // Pass BOTH parsed structures AND raw bytes to detect signatures (PCAP, CR)
-        setStandard(detectStandard(result?.parsed_structures, fileData, result?.entropy_map));
+        // Pass parsed structures, raw bytes, and WASM-detected protocol
+        setStandard(detectStandard(
+            result?.parsed_structures,
+            fileData,
+            result?.entropy_map,
+            result?.detected_protocol,
+            result?.protocol_confidence
+        ));
     }, [result, fileData]);
 
     const selectedBytes = useMemo(() => {

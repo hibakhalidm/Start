@@ -1,9 +1,10 @@
 // src/workers/analysisWorker.ts
 /// <reference lib="webworker" />
 
-import initWasm, { analyze, parse_file_structure } from '../../src-wasm/pkg/cifad_wasm';
+import initWasm, { analyze, parse_file_structure, detect_protocol } from '../../src-wasm/pkg/cifad_wasm';
+import type { TlvNode, AnalysisResult } from '../types/analysis';
 
-// Ensure WASM is initialized only once
+// WASM is initialized once per worker lifetime — zero-overhead on subsequent calls
 let wasmInitialized = false;
 
 self.onmessage = async (e: MessageEvent) => {
@@ -15,35 +16,47 @@ self.onmessage = async (e: MessageEvent) => {
             wasmInitialized = true;
         }
 
+        // Zero-copy: Uint8Array view over the transferred ArrayBuffer
         const bytes = new Uint8Array(buffer);
 
-        // 1. Run Physics Engine (Entropy, Hilbert, Autocorrelation)
-        const rawResult = analyze(bytes);
+        // 1. Physics engine: entropy map, Hilbert matrix, autocorrelation
+        const rawResult: Omit<AnalysisResult, 'parsed_structures'> = analyze(bytes);
 
-        // 2. Run Logic Engine (Recursive TLV Parser)
-        let parsed_structures: any[] = [];
+        // 2. ETSI/3GPP TLV parser: full node tree with retroactive role labels
+        let parsed_structures: TlvNode[] = [];
         try {
-            if (parse_file_structure) {
-                parsed_structures = parse_file_structure(bytes);
-            }
+            parsed_structures = parse_file_structure(bytes) as TlvNode[];
         } catch (parserError) {
-            console.warn("Worker TLV Parser warning:", parserError);
+            console.warn('[AnalysisWorker] TLV parser warning:', parserError);
         }
 
-        // 3. Send combined results back to main thread
-        self.postMessage({
-            success: true,
-            result: {
-                ...rawResult,
-                parsed_structures
-            }
-        });
+        // 3. Protocol verdict: authoritative ETSI/3GPP detection from node tree
+        let detected_protocol: string | undefined;
+        let protocol_confidence: 'HIGH' | 'MEDIUM' | 'LOW' | undefined;
+        try {
+            const verdict = detect_protocol(bytes) as {
+                detected_protocol: string | null;
+                protocol_confidence: string | null;
+            };
+            detected_protocol  = verdict.detected_protocol  ?? undefined;
+            protocol_confidence = (verdict.protocol_confidence as 'HIGH' | 'MEDIUM' | 'LOW') ?? undefined;
+        } catch (protocolError) {
+            console.warn('[AnalysisWorker] Protocol detection warning:', protocolError);
+        }
 
-    } catch (err: any) {
-        console.error("Worker Critical Analysis Failure:", err);
-        self.postMessage({
-            success: false,
-            error: err.message || "Unknown analysis error"
-        });
+        // 4. Return the fully typed, combined result
+        const result: AnalysisResult = {
+            ...rawResult,
+            parsed_structures,
+            detected_protocol,
+            protocol_confidence,
+        };
+
+        self.postMessage({ success: true, result });
+
+    } catch (err: unknown) {
+        const message = err instanceof Error ? err.message : 'Unknown analysis error';
+        console.error('[AnalysisWorker] Critical failure:', message);
+        self.postMessage({ success: false, error: message });
     }
 };
