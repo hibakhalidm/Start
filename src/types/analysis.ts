@@ -1,3 +1,9 @@
+export interface SearchMatch {
+    offset: number;
+    length: number;
+    preview: string; // hex + ascii snippet for the results list
+}
+
 export interface TlvNode {
     name: string;
     offset: number;

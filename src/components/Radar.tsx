@@ -1,19 +1,22 @@
-import React, { useRef, useEffect, useState, useMemo } from 'react';
+import React, { useRef, useEffect, useState } from 'react';
 import { HilbertCurve } from '../utils/hilbert';
 import { ZoomIn, ZoomOut, Maximize } from 'lucide-react';
+import type { SearchMatch } from '../types/analysis';
 
 interface RadarProps {
     matrix: Uint8Array;
     entropyMap: number[];
     highlightOffset: number | null;
     selectionRange: { start: number, end: number } | null;
+    searchMatches?: SearchMatch[];
+    activeMatchOffset?: number | null;
     hilbert: HilbertCurve;
     onJump: (offset: number) => void;
     onSelectRange: (start: number, end: number) => void;
     onHover?: (offset: number | null) => void;
 }
 
-const Radar: React.FC<RadarProps> = ({ matrix, entropyMap, highlightOffset, selectionRange, hilbert, onJump, onSelectRange, onHover }) => {
+const Radar: React.FC<RadarProps> = ({ matrix, entropyMap, highlightOffset, selectionRange, searchMatches, activeMatchOffset, hilbert, onJump, onSelectRange, onHover }) => {
     const canvasRef = useRef<HTMLCanvasElement>(null);
     const uiCanvasRef = useRef<HTMLCanvasElement>(null); // NEW UI CANVAS
     const containerRef = useRef<HTMLDivElement>(null);
@@ -59,7 +62,7 @@ const Radar: React.FC<RadarProps> = ({ matrix, entropyMap, highlightOffset, sele
         }
         ctx.putImageData(imgData, 0, 0);
 
-        // Draw Selection Overlay
+        // Draw Selection Overlay (cyan)
         if (selectionRange) {
             ctx.fillStyle = 'rgba(0, 255, 255, 0.4)';
             const maxSel = Math.min(selectionRange.end, maxLen);
@@ -70,7 +73,22 @@ const Radar: React.FC<RadarProps> = ({ matrix, entropyMap, highlightOffset, sele
                 } catch (e) { }
             }
         }
-    }, [matrix, entropyMap, selectionRange, hilbert]); // Notice hoverPos is REMOVED!
+
+        // Draw Search Match Overlay (magenta)
+        if (searchMatches && searchMatches.length > 0) {
+            for (const match of searchMatches) {
+                const isActive = activeMatchOffset !== undefined && activeMatchOffset !== null && match.offset === activeMatchOffset;
+                ctx.fillStyle = isActive ? 'rgba(255, 0, 204, 1.0)' : 'rgba(255, 0, 204, 0.6)';
+                const matchEnd = Math.min(match.offset + match.length, maxLen);
+                for (let i = match.offset; i < matchEnd; i++) {
+                    try {
+                        const [x, y] = hilbert.offsetToXY(i);
+                        ctx.fillRect(x, y, isActive ? 2 : 1, isActive ? 2 : 1);
+                    } catch (e) { }
+                }
+            }
+        }
+    }, [matrix, entropyMap, selectionRange, searchMatches, activeMatchOffset, hilbert]);
 
     // NEW: Render the lightweight crosshair only on the transparent UI canvas
     useEffect(() => {
